@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-import emoji
-
+from src.data import DATA_DIR
+from src.utils.io import read_file
 from src.utils.keyboard import create_keyboard
 
 keys = SimpleNamespace(
@@ -15,7 +15,7 @@ keys = SimpleNamespace(
     delete=':wastebasket: Delete',
     yes=':white_check_mark: Yes',
     no=':negative_squared_cross_mark: No',
-    ask_question=':red_question_mark: Ask a question',
+    ask_question=':red_question_mark: Ask a Question',
     send_question=':envelope_with_arrow: Send questions',
 )
 
@@ -28,3 +28,32 @@ states = SimpleNamespace(
     main='MAIN',
     ask_question='ASK_QUESTION',
 )
+
+# Constant Text Messages
+# General Messages
+HOW_TO_ASK_QUESTION_GUIDE = read_file(DATA_DIR / 'guide.html')
+ASK_QUESTION_START_MESSAGE = (
+    # first_name is filled later
+    ":pencil: <strong>{first_name}</strong>, send your question here.\n"
+    f"When done, click <strong>{keys.send_question}</strong>."
+)
+
+WELCOME_MESSAGE = "Hey <strong>{first_name}</strong>!"
+QUESTION_SAVE_SUCCESS_MESSAGE = ":check_mark_button: Question saved successfully."
+CANCEL_MESSAGE = ':cross_mark: Canceled.'
+
+# Question Templates
+QUESTION_PREVIEW_MESSAGE = (
+    ':pencil: <strong>Question Preview</strong>\n\n'
+    '{question}\n'  # Question is filled later
+    f'{"_" * 40}\n'
+    f'When done, click <strong>{keys.send_question}</strong>.'
+)
+
+SEND_QUESTION_TO_ALL_MESSAGE = (
+    ':bust_in_silhouette: From: {from_user}\n'
+    ':red_question_mark: <strong>New Question</strong>\n\n'
+    '{question}'
+)
+
+SEND_TO_ALL_SUCCESS_MESSAGE = ':check_mark_button: Question sent successfully to all users.'

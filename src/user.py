@@ -1,9 +1,11 @@
 import concurrent.futures
+from itertools import repeat
 
-import emoji
 from loguru import logger
 
-from src.constants import keys, states
+from src.constants import (QUESTION_PREVIEW_MESSAGE,
+                           SEND_QUESTION_TO_ALL_MESSAGE,
+                           SEND_TO_ALL_SUCCESS_MESSAGE, states)
 
 
 class User:
@@ -15,6 +17,8 @@ class User:
         self.db = mongodb
         self.stackbot = stackbot
         self.message = message
+        self.first_name = self.message.chat.first_name
+        self.username = self.message.chat.username
 
     @property
     def user(self):
@@ -36,10 +40,7 @@ class User:
         """
         Get current question full message.
         """
-        question_text = ':pencil: <strong>Question Preview</strong>\n\n'
-        question_text += self.question
-        question_text += f'\n{"_" * 40}\nWhen done, click <strong>{keys.send_question}</strong>.'
-        return question_text
+        return QUESTION_PREVIEW_MESSAGE.format(question=self.question)
 
     def save_question(self):
         """
@@ -61,21 +62,13 @@ class User:
         """
         Send message to user.
         """
-        # TODO: Fix duplicate send_message in run.py and here
-        # This is not according to DRY.
-        if emojize:
-            text = emoji.emojize(text)
-
-        self.stackbot.send_message(self.chat_id, text, reply_markup=reply_markup)
+        self.stackbot.send_message(chat_id=self.chat_id, text=text, reply_markup=reply_markup, emojize=emojize)
 
     def update_state(self, state):
         """
         Update user state.
         """
-        self.db.users.update_one(
-            {'chat.id': self.chat_id},
-            {'$set': {'state': state}},
-        )
+        self.db.users.update_one({'chat.id': self.chat_id}, {'$set': {'state': state}})
 
     def reset(self):
         """
@@ -91,19 +84,13 @@ class User:
         """
         Send question to all users in parallel.
         """
-        user = self.user
-        username = f"@{user['chat'].get('username')}"
-        firstname = user['chat']['first_name']
-        msg_text = f":bust_in_silhouette: From: {username or firstname}\n"
-        msg_text += ':red_question_mark: <strong>New Question</strong>\n\n'
-        msg_text += self.question
+        from_user = f'@{self.username}' if self.username else self.first_name
+        msg_text = SEND_QUESTION_TO_ALL_MESSAGE.format(from_user=from_user, question=self.question)
 
         # Send to all users in parallel
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for chat_id in self.db.users.distinct('chat.id'):
-                executor.submit(self.stackbot.send_message, chat_id, msg_text)
-
-        self.send_message(text=':check_mark_button: Question sent successfully to all users.')
+            executor.map(self.stackbot.send_message, self.db.users.distinct('chat.id'), repeat(msg_text))
+        self.send_message(SEND_TO_ALL_SUCCESS_MESSAGE)
 
 
 if __name__ == '__main__':
