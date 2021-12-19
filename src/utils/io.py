@@ -7,3 +7,7 @@ def read_json(filename):
 def write_json(data, filename, indent=4):
     with open(filename, 'w') as f:
         json.dump(data, f, indent=indent)
+
+def read_file(filename):
+    with open(filename, 'r') as f:
+        return f.read()
