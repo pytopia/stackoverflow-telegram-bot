@@ -28,6 +28,7 @@ class StackBot:
         # register handlers
         self.handlers()
 
+    def run(self):
         # run bot
         logger.info('Bot is running...')
         self.bot.infinity_polling()
@@ -115,4 +116,5 @@ class StackBot:
 
 if __name__ == '__main__':
     logger.info('Bot started...')
-    StackBot(telebot=bot, mongodb=db)
+    stackbot = StackBot(telebot=bot, mongodb=db)
+    stackbot.run()
