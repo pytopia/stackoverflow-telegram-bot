@@ -46,7 +46,7 @@ CANCEL_MESSAGE = ':cross_mark: Canceled.'
 QUESTION_PREVIEW_MESSAGE = (
     ':pencil: <strong>Question Preview</strong>\n\n'
     '{question}\n'  # Question is filled later
-    f'{"_" * 40}\n'
+    f'{"_" * 10}\n'
     f'When done, click <strong>{keys.send_question}</strong>.'
 )
 
@@ -57,3 +57,5 @@ SEND_QUESTION_TO_ALL_MESSAGE = (
 )
 
 SEND_TO_ALL_SUCCESS_MESSAGE = ':check_mark_button: Question sent successfully to all users.'
+
+EMPTY_QUESTION_MESSAGE = ':cross_mark: Question is empty!'

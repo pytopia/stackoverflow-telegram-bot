@@ -40,7 +40,8 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(chat_id=message.chat.id, mongodb=self.db, stackbot=self, message=message)
-            message.text = emoji.demojize(message.text)
+            if message.content_type == 'text':
+                message.text = emoji.demojize(message.text)
 
         @self.bot.message_handler(commands=['start'])
         def start(message):
@@ -83,15 +84,26 @@ class StackBot:
             self.user.send_question_to_all()
             self.user.reset()
 
-        @self.bot.message_handler(func=lambda ـ: True)
+        # Handles all other messages with the supported content_types
+        @bot.message_handler(content_types=['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note'])
         def echo(message):
             """
             Respond to user according to the current user state.
             """
-            if self.user.state == states.ask_question:
-                self.db.users.update_one({'chat.id': message.chat.id}, {'$push': {'current_question': message.text}})
-                self.send_message(message.chat.id, self.user.current_question)
-            print(message.text)
+            if not self.user.state == states.ask_question:
+                return
+
+            content = getattr(message, message.content_type)
+            # If content is a file, its file_id, mimetype, etc is saved in database for later use
+            # Note that if content is a list, the last one has the highest quality
+            if message.content_type != 'text':
+                content = vars(content[-1]) if isinstance(content, list) else vars(content)
+
+            # Save file
+            self.db.users.update_one({'chat.id': message.chat.id}, {
+                '$push': {f'current_question.{message.content_type}': content}
+            })
+            self.send_message(message.chat.id, self.user.current_question)
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):
         """

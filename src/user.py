@@ -3,7 +3,7 @@ from itertools import repeat
 
 from loguru import logger
 
-from src.constants import (QUESTION_PREVIEW_MESSAGE,
+from src.constants import (EMPTY_QUESTION_MESSAGE, QUESTION_PREVIEW_MESSAGE,
                            SEND_QUESTION_TO_ALL_MESSAGE,
                            SEND_TO_ALL_SUCCESS_MESSAGE, states)
 
@@ -33,12 +33,15 @@ class User:
         """
         Get current question raw message text.
         """
-        return '\n'.join(self.user.get('current_question', []))
+        full_question = self.user.get('current_question')
+        question_text = '\n'.join(full_question['text'])
+        return question_text
 
     @property
     def current_question(self):
         """
         Get current question full message.
+        This format contains extra information to be used in the preview.
         """
         return QUESTION_PREVIEW_MESSAGE.format(question=self.question)
 
@@ -47,13 +50,13 @@ class User:
         Save question to database.
         """
         logger.info('Save question to database...')
-        if not self.user.get('current_question'):
-            self.send_message(text=':cross_mark: Question is empty.')
+        if not self.user.get('current_question', {}).get('text'):
+            self.send_message(EMPTY_QUESTION_MESSAGE)
             return False
 
         self.db.questions.insert_one({
             'chat_id': self.chat_id,
-            'question': self.user.get('current_question', []),
+            'question': self.user.get('current_question', None),
             'date': self.message.date,
         })
         return True
@@ -70,16 +73,6 @@ class User:
         """
         self.db.users.update_one({'chat.id': self.chat_id}, {'$set': {'state': state}})
 
-    def reset(self):
-        """
-        Reset user state and data.
-        """
-        logger.info('Reset user data.')
-        self.db.users.update_one(
-            {'chat.id': self.chat_id},
-            {'$set': {'current_question': [], 'state': states.main}},
-        )
-
     def send_question_to_all(self):
         """
         Send question to all users in parallel.
@@ -92,6 +85,15 @@ class User:
             executor.map(self.stackbot.send_message, self.db.users.distinct('chat.id'), repeat(msg_text))
         self.send_message(SEND_TO_ALL_SUCCESS_MESSAGE)
 
+    def reset(self):
+        """
+        Reset user state and data.
+        """
+        logger.info('Reset user data.')
+        self.db.users.update_one(
+            {'chat.id': self.chat_id},
+            {'$set': {'state': states.main}, '$unset': {'current_question': 1}}
+        )
 
 if __name__ == '__main__':
     u = User(chat_id=371998922)
