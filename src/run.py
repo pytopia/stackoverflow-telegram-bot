@@ -77,7 +77,7 @@ class StackBot:
 
             If question is empty, user can continue.
             """
-            save_status = self.user.save_question()
+            save_status = self.user.persist_question()
             if not save_status:
                 return
 
@@ -94,16 +94,7 @@ class StackBot:
             if not self.user.state == states.ask_question:
                 return
 
-            content = getattr(message, message.content_type)
-            # If content is a file, its file_id, mimetype, etc is saved in database for later use
-            # Note that if content is a list, the last one has the highest quality
-            if message.content_type != 'text':
-                content = vars(content[-1]) if isinstance(content, list) else vars(content)
-
-            # Save file
-            self.db.users.update_one({'chat.id': message.chat.id}, {
-                '$push': {f'current_question.{message.content_type}': content}
-            })
+            self.user.update_current_question(message)
             self.send_message(message.chat.id, self.user.current_question)
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):

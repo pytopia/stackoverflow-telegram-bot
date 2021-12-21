@@ -43,9 +43,29 @@ class User:
         Get current question full message.
         This format contains extra information to be used in the preview.
         """
-        return QUESTION_PREVIEW_MESSAGE.format(question=self.question)
+        question_formatted_text = QUESTION_PREVIEW_MESSAGE.format(question=self.question)
+        return question_formatted_text
 
-    def save_question(self):
+    def update_current_question(self, message):
+        """
+        In ask_question state, the user can send a question in multiple messages.
+        In each message, we update the current question with the message recieved.
+        """
+        # if content is text, we store its html version to keep styles (bold, italic, etc.)
+        if message.content_type == 'text':
+            content = message.html_text
+        else:
+            # If content is a file, its file_id, mimetype, etc is saved in database for later use
+            # Note that if content is a list, the last one has the highest quality
+            content = getattr(message, message.content_type)
+            content = vars(content[-1]) if isinstance(content, list) else vars(content)
+
+        # Save file
+        self.db.users.update_one({'chat.id': message.chat.id}, {
+            '$push': {f'current_question.{message.content_type}': content}
+        })
+
+    def persist_question(self):
         """
         Save question to database.
         """
