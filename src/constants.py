@@ -29,6 +29,14 @@ states = SimpleNamespace(
     ask_question='ASK_QUESTION',
 )
 
+question_status = SimpleNamespace(
+    PREP='in_prep',
+    EDIT='edit',
+    DRAFT='draft',
+    DELETE='delete',
+    SENT='sent',
+)
+
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
 
 # Constant Text Messages

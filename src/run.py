@@ -9,6 +9,8 @@ from src.db import db
 from src.filters import IsAdmin
 from src.question import Question
 from src.user import User
+from src.question import Question
+from src.constants import question_status
 
 
 class StackBot:
@@ -28,7 +30,7 @@ class StackBot:
         self.handlers()
 
     def run(self):
-        # run bot
+        # run bot with polling
         logger.info('Bot is running...')
         self.bot.infinity_polling()
 
@@ -40,7 +42,9 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(chat_id=message.chat.id, mongodb=self.db, stackbot=self, message=message)
+            self.question = Question(mongodb=self.db, stackbot=self)
 
+            # Demojize text
             if message.content_type == 'text':
                 message.text = emoji.demojize(message.text)
 
@@ -77,12 +81,12 @@ class StackBot:
 
             If question is empty, user can continue.
             """
-            save_status = self.user.persist_question()
-            if not save_status:
-                return
-
+            question_id = self.db.questions.find_one({'chat.id': message.chat.id, 'status': question_status.PREP})['_id']
+            self.question.save(question_id)
             self.user.send_message(constants.QUESTION_SAVE_SUCCESS_MESSAGE, reply_markup=keyboards.main)
-            self.user.send_question_to_all()
+            self.question.send_to_all(question_id)
+
+            # reset user state and data
             self.user.reset()
 
         # Handles all other messages with the supported content_types
@@ -93,12 +97,9 @@ class StackBot:
             """
             if not self.user.state == states.ask_question:
                 return
-            from pprint import pprint
-            pprint(message.json)
 
-            self.user.update_current_question(message)
-            question_text, question_keyboard = self.user.preview_current_question()
-            self.user.send_message(question_text, reply_markup=question_keyboard)
+            question_id = self.question.update(message)
+            self.question.send_to_one(question_id=question_id, chat_id=message.chat.id, preview=True)
 
         @bot.callback_query_handler(func=lambda call: True)
         def test_callback(call): # <- passes a CallbackQuery type object to your function
@@ -106,7 +107,6 @@ class StackBot:
             self.db.questions.find_one({'': call.data})
             pprint(call.data)
             self.bot.answer_callback_query(call.id, text=call.data)
-
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):
         """
