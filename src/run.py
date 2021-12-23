@@ -2,13 +2,12 @@ import emoji
 from loguru import logger
 from telebot import custom_filters
 
+from src import constants
 from src.bot import bot
-from src.constants import (ASK_QUESTION_START_MESSAGE, CANCEL_MESSAGE,
-                           HOW_TO_ASK_QUESTION_GUIDE,
-                           QUESTION_SAVE_SUCCESS_MESSAGE, WELCOME_MESSAGE,
-                           keyboards, keys, states)
+from src.constants import keyboards, keys, states
 from src.db import db
 from src.filters import IsAdmin
+from src.question import Question
 from src.user import User
 
 
@@ -41,6 +40,7 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(chat_id=message.chat.id, mongodb=self.db, stackbot=self, message=message)
+
             if message.content_type == 'text':
                 message.text = emoji.demojize(message.text)
 
@@ -49,7 +49,7 @@ class StackBot:
             """
             /start command handler.
             """
-            self.user.send_message(WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
+            self.user.send_message(constants.WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
             self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
             self.user.reset()
 
@@ -59,8 +59,8 @@ class StackBot:
             Users starts sending question.
             """
             self.user.update_state(states.ask_question)
-            self.user.send_message(HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.ask_question)
-            self.user.send_message(ASK_QUESTION_START_MESSAGE.format(**vars(self.user)))
+            self.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.ask_question)
+            self.user.send_message(constants.ASK_QUESTION_START_MESSAGE.format(**vars(self.user)))
 
         @self.bot.message_handler(text=[keys.cancel])
         def cancel(message):
@@ -68,7 +68,7 @@ class StackBot:
             User cancels question.
             """
             self.user.reset()
-            self.user.send_message(CANCEL_MESSAGE, reply_markup=keyboards.main)
+            self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
 
         @self.bot.message_handler(text=[keys.send_question])
         def send_question(message):
@@ -81,21 +81,32 @@ class StackBot:
             if not save_status:
                 return
 
-            self.user.send_message(QUESTION_SAVE_SUCCESS_MESSAGE, reply_markup=keyboards.main)
+            self.user.send_message(constants.QUESTION_SAVE_SUCCESS_MESSAGE, reply_markup=keyboards.main)
             self.user.send_question_to_all()
             self.user.reset()
 
         # Handles all other messages with the supported content_types
-        @bot.message_handler(content_types=['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note'])
+        @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
         def echo(message):
             """
             Respond to user according to the current user state.
             """
             if not self.user.state == states.ask_question:
                 return
+            from pprint import pprint
+            pprint(message.json)
 
             self.user.update_current_question(message)
-            self.send_message(message.chat.id, self.user.current_question)
+            question_text, question_keyboard = self.user.preview_current_question()
+            self.user.send_message(question_text, reply_markup=question_keyboard)
+
+        @bot.callback_query_handler(func=lambda call: True)
+        def test_callback(call): # <- passes a CallbackQuery type object to your function
+            from pprint import pprint
+            self.db.questions.find_one({'': call.data})
+            pprint(call.data)
+            self.bot.answer_callback_query(call.id, text=call.data)
+
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):
         """

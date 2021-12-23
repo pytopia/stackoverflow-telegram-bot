@@ -3,9 +3,10 @@ from itertools import repeat
 
 from loguru import logger
 
-from src.constants import (EMPTY_QUESTION_MESSAGE, QUESTION_PREVIEW_MESSAGE,
-                           SEND_QUESTION_TO_ALL_MESSAGE,
-                           SEND_TO_ALL_SUCCESS_MESSAGE, states)
+from src import constants
+from src.constants import states
+from src.utils.common import human_readable_size
+from src.utils.keyboard import create_keyboard
 
 
 class User:
@@ -29,22 +30,39 @@ class User:
         return self.user.get('state')
 
     @property
-    def question(self):
-        """
-        Get current question raw message text.
-        """
-        full_question = self.user.get('current_question')
-        question_text = '\n'.join(full_question['text'])
-        return question_text
-
-    @property
     def current_question(self):
         """
         Get current question full message.
         This format contains extra information to be used in the preview.
         """
-        question_formatted_text = QUESTION_PREVIEW_MESSAGE.format(question=self.question)
-        return question_formatted_text
+        current_question = self.user['current_question']
+        if not current_question.get('text'):
+            question_text = constants.EMPTY_QUESTION_TEXT_MESSAGE
+        else:
+            question_text = '\n'.join(current_question['text'])
+
+        keys, callback_data = [], []
+        keyboard = None
+        for content_type in constants.SUPPORTED_CONTENT_TYPES:
+            if content_type == 'text' or not current_question.get(content_type):
+                continue
+
+            for content in current_question[content_type]:
+                file_name = content.get('file_name') or content_type
+                file_size = human_readable_size(content['file_size'])
+                keys.append(f"{file_name} - {file_size}")
+                callback_data.append(content['file_unique_id'])
+
+        # Create keyboard for files
+        if keys:
+            keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
+
+        return question_text, keyboard
+
+    def preview_current_question(self):
+        question_text, question_keyboard = self.current_question
+        question_formatted_text = constants.QUESTION_PREVIEW_MESSAGE.format(question=question_text)
+        return question_formatted_text, question_keyboard
 
     def update_current_question(self, message):
         """
@@ -71,15 +89,16 @@ class User:
         """
         logger.info('Save question to database...')
         if not self.user.get('current_question', {}).get('text'):
-            self.send_message(EMPTY_QUESTION_MESSAGE)
+            self.send_message(constants.EMPTY_QUESTION_MESSAGE)
             return False
 
-        self.db.questions.insert_one({
+        _id = self.db.questions.insert_one({
             'chat_id': self.chat_id,
             'question': self.user.get('current_question', None),
             'date': self.message.date,
         })
-        return True
+
+        return _id.inserted_id
 
     def send_message(self, text, reply_markup=None, emojize=True):
         """
@@ -98,12 +117,12 @@ class User:
         Send question to all users in parallel.
         """
         from_user = f'@{self.username}' if self.username else self.first_name
-        msg_text = SEND_QUESTION_TO_ALL_MESSAGE.format(from_user=from_user, question=self.question)
+        msg_text = constants.SEND_QUESTION_TO_ALL_MESSAGE.format(from_user=from_user, question=self.current_question)
 
         # Send to all users in parallel
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.map(self.stackbot.send_message, self.db.users.distinct('chat.id'), repeat(msg_text))
-        self.send_message(SEND_TO_ALL_SUCCESS_MESSAGE)
+        self.send_message(constants.SEND_TO_ALL_SUCCESS_MESSAGE)
 
     def reset(self):
         """

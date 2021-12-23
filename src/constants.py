@@ -29,6 +29,8 @@ states = SimpleNamespace(
     ask_question='ASK_QUESTION',
 )
 
+SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
+
 # Constant Text Messages
 # General Messages
 HOW_TO_ASK_QUESTION_GUIDE = read_file(DATA_DIR / 'guide.html')
@@ -59,3 +61,4 @@ SEND_QUESTION_TO_ALL_MESSAGE = (
 SEND_TO_ALL_SUCCESS_MESSAGE = ':check_mark_button: Question sent successfully to all users.'
 
 EMPTY_QUESTION_MESSAGE = ':cross_mark: Question is empty!'
+EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question Text: Please also provide a question.'
