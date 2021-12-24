@@ -46,11 +46,7 @@ class User:
         logger.info('Reset user data.')
         self.db.users.update_one(
             {'chat.id': self.chat_id},
-            {'$set': {'state': states.main}}
+            {'$set': {'state': states.MAIN}}
         )
 
         self.db.questions.delete_one({'chat.id': self.chat_id, 'status': constants.question_status.PREP})
-
-if __name__ == '__main__':
-    u = User(chat_id=371998922)
-    print(u.state)

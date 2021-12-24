@@ -1,10 +1,10 @@
 import concurrent.futures
+from itertools import repeat
 
 import constants
 from src.constants import question_status
 from src.utils.common import human_readable_size
 from src.utils.keyboard import create_keyboard
-from itertools import repeat
 
 
 class Question:
@@ -19,16 +19,17 @@ class Question:
         """
         # If content is text, we store its html version to keep styles (bold, italic, etc.)
         if message.content_type == 'text':
-            content = message.html_text
+            content = {'text': message.html_text}
         else:
             # If content is a file, its file_id, mimetype, etc is saved in database for later use
             # Note that if content is a list, the last one has the highest quality
             content = getattr(message, message.content_type)
             content = vars(content[-1]) if isinstance(content, list) else vars(content)
+        content['content_type'] = message.content_type
 
         # Save
         output = self.db.questions.update_one({'chat.id': message.chat.id, 'status': question_status.PREP}, {
-            '$push': {f'content.{message.content_type}': content},
+            '$push': {f'content': content},
             '$set': {'date': message.date},
         }, upsert=True)
 
@@ -40,23 +41,20 @@ class Question:
 
     def send_to_one(self, question_id: str, chat_id: str, preview: bool = False):
         question = self.db.questions.find_one({'_id': question_id})
-        if not question['content'].get('text'):
-            question_text = constants.EMPTY_QUESTION_TEXT_MESSAGE
-        else:
-            question_text = '\n'.join(question['content']['text'])
-
-        # Create keys and keyboard
+        question_text = ""
         keys, callback_data = [], []
         keyboard = None
-        for content_type in constants.SUPPORTED_CONTENT_TYPES:
-            if content_type == 'text' or not question['content'].get(content_type):
-                continue
-
-            for content in question['content'][content_type]:
-                file_name = content.get('file_name') or content_type
+        for content in question['content']:
+            if content['content_type'] == 'text':
+                question_text += f"{content['text']}\n"
+            else:
+                file_name = content.get('file_name') or content['content_type']
                 file_size = human_readable_size(content['file_size'])
                 keys.append(f"{file_name} - {file_size}")
                 callback_data.append(content['file_unique_id'])
+
+        if not question_text:
+            question_text = constants.EMPTY_QUESTION_TEXT_MESSAGE
 
         if keys:
             keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)

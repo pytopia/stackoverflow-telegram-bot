@@ -25,8 +25,8 @@ keyboards = SimpleNamespace(
 )
 
 states = SimpleNamespace(
-    main='MAIN',
-    ask_question='ASK_QUESTION',
+    MAIN='MAIN',
+    ASK_QUESTION='ASK_QUESTION',
 )
 
 question_status = SimpleNamespace(
@@ -38,6 +38,7 @@ question_status = SimpleNamespace(
 )
 
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
+CALLBACK_LENGTH_LIMIT = 64
 
 # Constant Text Messages
 # General Messages
@@ -69,4 +70,5 @@ SEND_QUESTION_TO_ALL_MESSAGE = (
 SEND_TO_ALL_SUCCESS_MESSAGE = ':check_mark_button: Question sent successfully to all users.'
 
 EMPTY_QUESTION_MESSAGE = ':cross_mark: Question is empty!'
-EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question Text: Please also provide a question.'
+EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question'
+FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'

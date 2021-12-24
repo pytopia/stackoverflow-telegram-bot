@@ -1,16 +1,15 @@
 import emoji
 from loguru import logger
 from telebot import custom_filters
+from data import DATA_DIR
 
 from src import constants
 from src.bot import bot
-from src.constants import keyboards, keys, states
+from src.constants import keyboards, keys, question_status, states
 from src.db import db
 from src.filters import IsAdmin
 from src.question import Question
 from src.user import User
-from src.question import Question
-from src.constants import question_status
 
 
 class StackBot:
@@ -62,7 +61,10 @@ class StackBot:
             """
             Users starts sending question.
             """
-            self.user.update_state(states.ask_question)
+            if not self.user.state == states.MAIN:
+                return
+
+            self.user.update_state(states.ASK_QUESTION)
             self.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.ask_question)
             self.user.send_message(constants.ASK_QUESTION_START_MESSAGE.format(**vars(self.user)))
 
@@ -71,6 +73,9 @@ class StackBot:
             """
             User cancels question.
             """
+            if not self.user.state == states.ASK_QUESTION:
+                return
+
             self.user.reset()
             self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
 
@@ -81,7 +86,17 @@ class StackBot:
 
             If question is empty, user can continue.
             """
-            question_id = self.db.questions.find_one({'chat.id': message.chat.id, 'status': question_status.PREP})['_id']
+            if not self.user.state == states.ASK_QUESTION:
+                return
+
+            # check if question is empty
+            question = self.db.questions.find_one({'chat.id': message.chat.id, 'status': question_status.PREP})
+            if not question:
+                self.user.send_message(constants.EMPTY_QUESTION_MESSAGE)
+                return
+
+            # send question to all users
+            question_id = question['_id']
             self.question.save(question_id)
             self.user.send_message(constants.QUESTION_SAVE_SUCCESS_MESSAGE, reply_markup=keyboards.main)
             self.question.send_to_all(question_id)
@@ -95,18 +110,26 @@ class StackBot:
             """
             Respond to user according to the current user state.
             """
-            if not self.user.state == states.ask_question:
+            if not self.user.state == states.ASK_QUESTION:
                 return
 
             question_id = self.question.update(message)
             self.question.send_to_one(question_id=question_id, chat_id=message.chat.id, preview=True)
 
         @bot.callback_query_handler(func=lambda call: True)
-        def test_callback(call): # <- passes a CallbackQuery type object to your function
-            from pprint import pprint
-            self.db.questions.find_one({'': call.data})
-            pprint(call.data)
+        def test_callback(call):
             self.bot.answer_callback_query(call.id, text=call.data)
+            query_result = self.db.questions.find_one({'content.file_unique_id': call.data}, {'content.$': 1})
+            if not query_result:
+                self.user.send_message(constants.FILE_NOT_FOUND_ERROR_MESSAGE)
+
+            # Get content from query result
+            content = query_result['content'][0]
+            file_id = content['file_id']
+            content_type = content['content_type']
+
+            # Send file to user with the appropriate send_file method according to the content_type
+            getattr(self.bot, f'send_{content_type}')(call.message.chat.id, file_id)
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):
         """
