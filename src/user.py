@@ -46,4 +46,4 @@ class User:
             {'$set': {'state': states.MAIN}}
         )
 
-        self.db.questions.delete_one({'chat.id': self.chat_id, 'status': constants.question_status.PREP})
+        self.db.questions.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})

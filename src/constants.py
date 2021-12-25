@@ -16,7 +16,8 @@ keys = SimpleNamespace(
     yes=':white_check_mark: Yes',
     no=':negative_squared_cross_mark: No',
     ask_question=':red_question_mark: Ask a Question',
-    send_question=':envelope_with_arrow: Send questions',
+    send_question=':envelope_with_arrow: Send Question',
+    send_answer=':envelope_with_arrow: Send Answer',
 )
 
 inline_keys = SimpleNamespace(
@@ -31,6 +32,7 @@ inline_keys = SimpleNamespace(
 keyboards = SimpleNamespace(
     main=create_keyboard(keys.ask_question, keys.settings),
     ask_question=create_keyboard(keys.cancel, keys.send_question),
+    answer_question=create_keyboard(keys.cancel, keys.send_answer),
 )
 
 states = SimpleNamespace(
@@ -39,7 +41,7 @@ states = SimpleNamespace(
     ANSWER_QUESTION='ANSWER_QUESTION',
 )
 
-question_status = SimpleNamespace(
+post_status = SimpleNamespace(
     PREP='in_prep',
     EDIT='edit',
     DRAFT='draft',

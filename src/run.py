@@ -4,7 +4,7 @@ from telebot import custom_filters
 
 from src import constants
 from src.bot import bot
-from src.constants import inline_keys, keyboards, keys, question_status, states
+from src.constants import inline_keys, keyboards, keys, post_status, states
 from src.db import db
 from src.filters import IsAdmin
 from src.question import Question
@@ -26,7 +26,7 @@ class StackBot:
         self.bot.add_custom_filter(custom_filters.TextStartsFilter())
 
         # question object to handle send/recieve questions
-        self.question = Question(mongodb=self.db, stackbot=self)
+        self.question = Question(mongodb=self.db, stackbot=self, post_type='question')
 
         # register handlers
         self.handlers()
@@ -48,6 +48,17 @@ class StackBot:
             # Demojize text
             if message.content_type == 'text':
                 message.text = emoji.demojize(message.text)
+
+        @self.bot.middleware_handler(update_types=['callback_query'])
+        def init_callback_handler(bot_instance, call):
+            """
+            Initialize user to use in other handlers.
+            """
+            # Getting updated user before message reaches any other handler
+            self.user = User(chat_id=call.message.chat.id, mongodb=self.db, stackbot=self, message=call.message)
+
+            # Getting updated user before message reaches any other handler
+            call.data = emoji.demojize(call.data)
 
         @self.bot.message_handler(commands=['start'])
         def start(message):
@@ -75,9 +86,6 @@ class StackBot:
             """
             User cancels question.
             """
-            if not self.user.state == states.ASK_QUESTION:
-                return
-
             self.user.reset()
             self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
 
@@ -92,7 +100,7 @@ class StackBot:
                 return
 
             # Check if question is empty
-            question = self.db.questions.find_one({'chat.id': message.chat.id, 'status': question_status.PREP})
+            question = self.db.questions.find_one({'chat.id': message.chat.id, 'status': post_status.PREP})
             if not question:
                 self.user.send_message(constants.EMPTY_QUESTION_MESSAGE)
                 return
@@ -111,12 +119,13 @@ class StackBot:
             """
             Respond to user according to the current user state.
             """
-            if not self.user.state == states.ASK_QUESTION:
-                return
+            self.user.send_message(f'State: <strong>{self.user.state}</strong>')
+            if self.user.state == states.ASK_QUESTION:
+                question_id = self.question.update(message)
+                self.question.send_to_one(post_id=question_id, chat_id=message.chat.id, preview=True)
 
-            print(message.json)
-            question_id = self.question.update(message)
-            self.question.send_to_one(question_id=question_id, chat_id=message.chat.id, preview=True)
+            elif self.user.state == states.ANSWER_QUESTION:
+                answer_id = self.answer.update(message)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -140,9 +149,12 @@ class StackBot:
             """
             Answer inline key callback.
             """
-            self.bot.answer_callback_query(call.id, text=inline_keys.answer)
+            self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.answer))
             self.user.update_state(states.ANSWER_QUESTION)
-            self.user.send_message(constants.ANSWER_QUESTION_START_MESSAGE.format(**vars(self.user)))
+            self.user.send_message(
+                constants.ANSWER_QUESTION_START_MESSAGE.format(**vars(self.user)),
+                reply_markup=keyboards.answer_question
+            )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.back)
         def back_callback(call):
@@ -155,7 +167,7 @@ class StackBot:
             question_id = self.get_call_info(call)['question_id']
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.question.get_quesiton_keyboard(question_id)
+                reply_markup=self.question.get_post_keyboard(post_id=question_id)
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.like)
@@ -163,11 +175,11 @@ class StackBot:
             self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.like))
 
             # add user chat_id to likes
-            question_id = self.get_call_info(call)['question_id']
+            question_id = self.get_call_info(call)['post_id']
             self.question.like(call.message.chat.id, question_id)
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.question.get_quesiton_keyboard(question_id)
+                reply_markup=self.question.get_post_keyboard(post_id=question_id)
             )
 
         @bot.callback_query_handler(func=lambda call: True)
@@ -175,6 +187,7 @@ class StackBot:
             """
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
+            print(call.data)
             self.bot.answer_callback_query(call.id, text=f'Sending file: {call.data}...')
             self.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
