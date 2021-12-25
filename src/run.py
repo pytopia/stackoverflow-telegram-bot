@@ -1,3 +1,4 @@
+from itertools import repeat
 import emoji
 from loguru import logger
 from telebot import custom_filters
@@ -5,11 +6,12 @@ from data import DATA_DIR
 
 from src import constants
 from src.bot import bot
-from src.constants import keyboards, keys, question_status, states
+from src.constants import keyboards, keys, question_status, states, inline_keys
 from src.db import db
 from src.filters import IsAdmin
 from src.question import Question
 from src.user import User
+from src.utils.keyboard import create_keyboard
 
 
 class StackBot:
@@ -24,6 +26,9 @@ class StackBot:
         self.bot.add_custom_filter(IsAdmin())
         self.bot.add_custom_filter(custom_filters.TextMatchFilter())
         self.bot.add_custom_filter(custom_filters.TextStartsFilter())
+
+        # question object to handle send/recieve questions
+        self.question = Question(mongodb=self.db, stackbot=self)
 
         # register handlers
         self.handlers()
@@ -41,7 +46,6 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(chat_id=message.chat.id, mongodb=self.db, stackbot=self, message=message)
-            self.question = Question(mongodb=self.db, stackbot=self)
 
             # Demojize text
             if message.content_type == 'text':
@@ -89,19 +93,18 @@ class StackBot:
             if not self.user.state == states.ASK_QUESTION:
                 return
 
-            # check if question is empty
+            # Check if question is empty
             question = self.db.questions.find_one({'chat.id': message.chat.id, 'status': question_status.PREP})
             if not question:
                 self.user.send_message(constants.EMPTY_QUESTION_MESSAGE)
                 return
 
-            # send question to all users
-            question_id = question['_id']
-            self.question.save(question_id)
+            # Send question to all users
+            self.question.save(question['_id'])
             self.user.send_message(constants.QUESTION_SAVE_SUCCESS_MESSAGE, reply_markup=keyboards.main)
-            self.question.send_to_all(question_id)
+            self.question.send_to_all(question['_id'])
 
-            # reset user state and data
+            # Reset user state and data
             self.user.reset()
 
         # Handles all other messages with the supported content_types
@@ -110,26 +113,42 @@ class StackBot:
             """
             Respond to user according to the current user state.
             """
+            print(message.text)
             if not self.user.state == states.ASK_QUESTION:
                 return
 
             question_id = self.question.update(message)
             self.question.send_to_one(question_id=question_id, chat_id=message.chat.id, preview=True)
 
+        @bot.callback_query_handler(func=lambda call: self.get_call_text(call) == inline_keys.actions)
+        def actions_callback(call):
+            self.bot.answer_callback_query(call.id, text=inline_keys.actions)
+
+            question_id = call.data
+            self.bot.edit_message_reply_markup(
+                call.message.chat.id, call.message.message_id,
+                reply_markup=create_keyboard(
+                    inline_keys.back, inline_keys.answer, inline_keys.follow, inline_keys.unfollow,
+                    callback_data=repeat(question_id),
+                    is_inline=True
+                )
+            )
+
+        @bot.callback_query_handler(func=lambda call: self.get_call_text(call) == inline_keys.back)
+        def actions_callback(call):
+            self.bot.answer_callback_query(call.id, text=inline_keys.back)
+
+            # edit keyboard
+            question_id = str(call.data)
+            self.bot.edit_message_reply_markup(
+                call.message.chat.id, call.message.message_id,
+                reply_markup=self.question.get_quesiton_keyboard(question_id)
+            )
+
         @bot.callback_query_handler(func=lambda call: True)
-        def test_callback(call):
-            self.bot.answer_callback_query(call.id, text=call.data)
-            query_result = self.db.questions.find_one({'content.file_unique_id': call.data}, {'content.$': 1})
-            if not query_result:
-                self.user.send_message(constants.FILE_NOT_FOUND_ERROR_MESSAGE)
-
-            # Get content from query result
-            content = query_result['content'][0]
-            file_id = content['file_id']
-            content_type = content['content_type']
-
-            # Send file to user with the appropriate send_file method according to the content_type
-            getattr(self.bot, f'send_{content_type}')(call.message.chat.id, file_id)
+        def send_file(call):
+            self.bot.answer_callback_query(call.id, text=f'Sending file: {call.data}...')
+            self.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):
         """
@@ -138,6 +157,33 @@ class StackBot:
         text = emoji.emojize(text) if emojize else text
         self.bot.send_message(chat_id, text, reply_markup=reply_markup)
 
+    def send_file(self, chat_id, file_unique_id, message_id=None):
+        """
+        Send file to telegram bot having a chat_id and file_id.
+        """
+        file_id, content_type, mime_type = self.file_unique_id_to_content(file_unique_id)
+
+        # Send file to user with the appropriate send_file method according to the content_type
+        send_method = getattr(self.bot, f'send_{content_type}')
+        send_method(
+            chat_id, file_id,
+            reply_to_message_id=message_id,
+            caption=f"<code>{mime_type or ''}</code>",
+        )
+
+    def file_unique_id_to_content(self, file_unique_id):
+        collections = ['questions', 'answers']
+        for collection in collections:
+            collection = getattr(self.db, collection)
+            query_result = collection.find_one({'content.file_unique_id': file_unique_id}, {'content.$': 1})
+            content = query_result['content'][0]
+
+            return content['file_id'], content['content_type'], content.get('mime_type')
+
+    def get_call_text(self, call):
+        for button in call.message.reply_markup.keyboard[0]:
+            if button.callback_data == call.data:
+                return button.text
 
 if __name__ == '__main__':
     logger.info('Bot started...')

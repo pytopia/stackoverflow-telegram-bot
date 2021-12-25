@@ -19,6 +19,15 @@ keys = SimpleNamespace(
     send_question=':envelope_with_arrow: Send questions',
 )
 
+inline_keys = SimpleNamespace(
+    actions ='Actions »',
+    back ='« Back',
+    answer=':bright_button: Answer',
+    follow=':plus: Follow',
+    unfollow=':minus: Unfollow',
+    like=':red_heart: Like'
+)
+
 keyboards = SimpleNamespace(
     main=create_keyboard(keys.ask_question, keys.settings),
     ask_question=create_keyboard(keys.cancel, keys.send_question),
