@@ -114,6 +114,7 @@ class StackBot:
             if not self.user.state == states.ASK_QUESTION:
                 return
 
+            print(message.json)
             question_id = self.question.update(message)
             self.question.send_to_one(question_id=question_id, chat_id=message.chat.id, preview=True)
 
@@ -152,6 +153,18 @@ class StackBot:
 
             # main menu keyboard
             question_id = self.get_call_info(call)['question_id']
+            self.bot.edit_message_reply_markup(
+                call.message.chat.id, call.message.message_id,
+                reply_markup=self.question.get_quesiton_keyboard(question_id)
+            )
+
+        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.like)
+        def like_callback(call):
+            self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.like))
+
+            # add user chat_id to likes
+            question_id = self.get_call_info(call)['question_id']
+            self.question.like(call.message.chat.id, question_id)
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
                 reply_markup=self.question.get_quesiton_keyboard(question_id)

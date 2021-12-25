@@ -123,8 +123,19 @@ class Question:
                 callback_data.append(content['file_unique_id'])
 
         # add actions, like, etc. keys
-        keys.extend([inline_keys.actions, inline_keys.like])
+        num_likes = len(question.get('likes', []))
+        like_key_text = '' if num_likes == 0 else f'{inline_keys.like} {num_likes}'
+
+        keys.extend([inline_keys.actions, like_key_text or inline_keys.like])
         callback_data.extend([inline_keys.actions, inline_keys.like])
 
         question_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return question_keyboard
+
+    def like(self, chat_id, question_id):
+        """
+        Like question with question_id.
+        """
+        self.db.questions.update_one(
+            {'_id': ObjectId(question_id)}, {'$push': {'likes': chat_id}}
+        )

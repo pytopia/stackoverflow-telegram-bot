@@ -130,3 +130,4 @@ dmypy.json
 
 # my custom gitignore
 .vscode/
+*.json
