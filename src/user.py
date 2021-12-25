@@ -1,6 +1,3 @@
-import concurrent.futures
-from itertools import repeat
-
 from loguru import logger
 
 from src import constants

@@ -10,6 +10,9 @@ from src.utils.keyboard import create_keyboard
 
 
 class Question:
+    """
+    Main class to handle questions and their actions.
+    """
     def __init__(self, mongodb, stackbot):
         self.db = mongodb
         self.stackbot = stackbot
@@ -31,17 +34,29 @@ class Question:
 
         # Save
         output = self.db.questions.update_one({'chat.id': message.chat.id, 'status': question_status.PREP}, {
-            '$push': {f'content': content},
+            '$push': {'content': content},
             '$set': {'date': message.date},
         }, upsert=True)
 
-        _id = output.upserted_id or self.db.questions.find_one({'chat.id': message.chat.id, 'status': question_status.PREP})['_id']
+        _id = output.upserted_id or self.db.questions.find_one({
+            'chat.id': message.chat.id, 'status': question_status.PREP
+        })['_id']
         return _id
 
     def save(self, question_id: str):
+        """
+        Save question with question_id to database.
+        """
         self.db.questions.update_one({'_id': question_id}, {'$set': {'status': question_status.SENT}})
 
     def send_to_one(self, question_id: str, chat_id: str, preview: bool = False):
+        """
+        Send question with question_id to user with chat_id.
+
+        :param question_id: Unique id of the question
+        :param chat_id: Unique id of the user
+        :param preview: If True, send question in preview mode. Default is False.
+        """
         question_keyboard = self.get_quesiton_keyboard(question_id)
         question_text = self.get_quesiton_text(question_id)
 
@@ -52,29 +67,52 @@ class Question:
             question_formatted_text = constants.SEND_QUESTION_TO_ALL_MESSAGE.format(
                 from_user=chat_id, question=question_text
             )
-        self.stackbot.send_message(chat_id=chat_id, text=question_formatted_text, reply_markup=question_keyboard)
+        message = self.stackbot.send_message(
+            chat_id=chat_id, text=question_formatted_text,
+            reply_markup=question_keyboard
+        )
+
+        self.db.callback_data.insert_one({
+            'question_id': question_id,
+            'chat_id': chat_id,
+            'message_id': message.message_id,
+            'type': 'question',
+        })
 
     def send_to_all(self, question_id: str):
+        """
+        Send question with question_id to all users.
+        """
         chat_ids = map(lambda user: user['chat']['id'], self.db.users.find())
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.map(self.send_to_one, repeat(question_id), chat_ids)
 
-    def get_quesiton_text(self, question_id):
+    def get_quesiton_text(self, question_id: str):
+        """
+        Get question text with question_id.
+
+        :param question_id: Unique id of the question
+        :return: Question text.
+        """
         question = self.db.questions.find_one({'_id': ObjectId(question_id)})
         question_text = ""
         for content in question['content']:
             if content['content_type'] == 'text':
                 question_text += f"{content['text']}\n"
 
-        # Empty question text is allowed
+        # Empty question text is allowed (User can send an empty question with attachments)
         if not question_text:
             question_text = constants.EMPTY_QUESTION_TEXT_MESSAGE
 
         return question_text
 
     def get_quesiton_keyboard(self, question_id):
+        """
+        Get question keyboard that has attached files + other actions on question such as like, actions menu, etc.
+        """
         question = self.db.questions.find_one({'_id': ObjectId(question_id)})
 
+        # get default keys
         keys, callback_data = [], []
         question_keyboard = None
         for content in question['content']:
@@ -84,11 +122,9 @@ class Question:
                 keys.append(f"{file_name} - {file_size}")
                 callback_data.append(content['file_unique_id'])
 
-        # Create keyboard if any file is attached
-        if keys:
-            keys.append(inline_keys.actions)
-            callback_data.append(str(question_id))
+        # add actions, like, etc. keys
+        keys.extend([inline_keys.actions, inline_keys.like])
+        callback_data.extend([inline_keys.actions, inline_keys.like])
 
-            question_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
-
+        question_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return question_keyboard

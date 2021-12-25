@@ -20,8 +20,8 @@ keys = SimpleNamespace(
 )
 
 inline_keys = SimpleNamespace(
-    actions ='Actions »',
-    back ='« Back',
+    actions='Actions »',
+    back='« Back',
     answer=':bright_button: Answer',
     follow=':plus: Follow',
     unfollow=':minus: Unfollow',
@@ -36,6 +36,7 @@ keyboards = SimpleNamespace(
 states = SimpleNamespace(
     MAIN='MAIN',
     ASK_QUESTION='ASK_QUESTION',
+    ANSWER_QUESTION='ANSWER_QUESTION',
 )
 
 question_status = SimpleNamespace(
@@ -81,3 +82,5 @@ SEND_TO_ALL_SUCCESS_MESSAGE = ':check_mark_button: Question sent successfully to
 EMPTY_QUESTION_MESSAGE = ':cross_mark: Question is empty!'
 EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question'
 FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'
+
+ANSWER_QUESTION_START_MESSAGE = ':pencil: <strong>{first_name}</strong>, send your answer here:\n\n'

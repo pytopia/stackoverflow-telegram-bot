@@ -1,12 +1,10 @@
-from itertools import repeat
 import emoji
 from loguru import logger
 from telebot import custom_filters
-from data import DATA_DIR
 
 from src import constants
 from src.bot import bot
-from src.constants import keyboards, keys, question_status, states, inline_keys
+from src.constants import inline_keys, keyboards, keys, question_status, states
 from src.db import db
 from src.filters import IsAdmin
 from src.question import Question
@@ -113,33 +111,47 @@ class StackBot:
             """
             Respond to user according to the current user state.
             """
-            print(message.text)
             if not self.user.state == states.ASK_QUESTION:
                 return
 
             question_id = self.question.update(message)
             self.question.send_to_one(question_id=question_id, chat_id=message.chat.id, preview=True)
 
-        @bot.callback_query_handler(func=lambda call: self.get_call_text(call) == inline_keys.actions)
+        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
+            """Actions >> inline key callback.
+
+            Questions/Answers actions include follow, unfollow, answer, delete, etc.
+            """
             self.bot.answer_callback_query(call.id, text=inline_keys.actions)
 
-            question_id = call.data
+            # actions keyboard
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
                 reply_markup=create_keyboard(
                     inline_keys.back, inline_keys.answer, inline_keys.follow, inline_keys.unfollow,
-                    callback_data=repeat(question_id),
                     is_inline=True
                 )
             )
 
-        @bot.callback_query_handler(func=lambda call: self.get_call_text(call) == inline_keys.back)
-        def actions_callback(call):
+        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.answer)
+        def answer_callback(call):
+            """
+            Answer inline key callback.
+            """
+            self.bot.answer_callback_query(call.id, text=inline_keys.answer)
+            self.user.update_state(states.ANSWER_QUESTION)
+            self.user.send_message(constants.ANSWER_QUESTION_START_MESSAGE.format(**vars(self.user)))
+
+        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.back)
+        def back_callback(call):
+            """
+            Back inline key callback.
+            """
             self.bot.answer_callback_query(call.id, text=inline_keys.back)
 
-            # edit keyboard
-            question_id = str(call.data)
+            # main menu keyboard
+            question_id = self.get_call_info(call)['question_id']
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
                 reply_markup=self.question.get_quesiton_keyboard(question_id)
@@ -147,6 +159,9 @@ class StackBot:
 
         @bot.callback_query_handler(func=lambda call: True)
         def send_file(call):
+            """
+            Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
+            """
             self.bot.answer_callback_query(call.id, text=f'Sending file: {call.data}...')
             self.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
@@ -155,7 +170,9 @@ class StackBot:
         Send message to telegram bot having a chat_id and text_content.
         """
         text = emoji.emojize(text) if emojize else text
-        self.bot.send_message(chat_id, text, reply_markup=reply_markup)
+        message = self.bot.send_message(chat_id, text, reply_markup=reply_markup)
+
+        return message
 
     def send_file(self, chat_id, file_unique_id, message_id=None):
         """
@@ -180,10 +197,8 @@ class StackBot:
 
             return content['file_id'], content['content_type'], content.get('mime_type')
 
-    def get_call_text(self, call):
-        for button in call.message.reply_markup.keyboard[0]:
-            if button.callback_data == call.data:
-                return button.text
+    def get_call_info(self, call):
+        return self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})
 
 if __name__ == '__main__':
     logger.info('Bot started...')
