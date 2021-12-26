@@ -3,7 +3,7 @@ from itertools import repeat
 
 import constants
 from bson.objectid import ObjectId
-from src.constants import inline_keys, post_status
+from src.constants import inline_keys, post_status, SUPPORTED_CONTENT_TYPES
 from src.utils.common import human_readable_size
 from src.utils.keyboard import create_keyboard
 
@@ -18,6 +18,7 @@ class Post:
         self.post_type = self.__class__.__name__.lower()
         self.collection = getattr(self.db, self.post_type)
         self.chat_id = chat_id
+        self.supported_content_types = SUPPORTED_CONTENT_TYPES
 
     def update(self, message, post_metadata):
         """
@@ -25,6 +26,9 @@ class Post:
         In each message, we update the current post with the message recieved.
         """
         # If content is text, we store its html version to keep styles (bold, italic, etc.)
+        if message.content_type not in self.supported_content_types:
+            return
+
         if message.content_type == 'text':
             content = {'text': message.html_text}
         else:
@@ -71,17 +75,8 @@ class Post:
         post_text = self.get_text(post_id)
 
         # Preview to user mode or send to other users
-        if preview:
-            post_formatted_text = constants.POST_PREVIEW_MESSAGE.format(
-                post_text=post_text, post_type=self.post_type.title()
-            )
-        else:
-            post_formatted_text = constants.SEND_POST_TO_ALL_MESSAGE.format(
-                from_user=chat_id, post_text=post_text,
-                post_type=self.post_type.title(), emoji=self.emoji
-            )
         sent_message = self.stackbot.send_message(
-            chat_id=chat_id, text=post_formatted_text,
+            chat_id=chat_id, text=post_text,
             reply_markup=post_keyboard
         )
 
@@ -103,7 +98,7 @@ class Post:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.map(self.send_to_one, repeat(post_id), chat_ids)
 
-    def get_text(self, post_id: str):
+    def get_text(self, post_id: str, preview: bool = False, prettify: bool = True):
         """
         Get post text with post_id.
 
@@ -119,6 +114,18 @@ class Post:
         # Empty post text is allowed (User can send an empty post with attachments)
         if not post_text:
             post_text = constants.EMPTY_QUESTION_TEXT_MESSAGE
+
+        # prettify message with other information such as sender, post status, etc.
+        if prettify:
+            if preview:
+                post_text = constants.POST_PREVIEW_MESSAGE.format(
+                    post_text=post_text, post_type=self.post_type.title()
+                )
+            else:
+                post_text = constants.SEND_POST_TO_ALL_MESSAGE.format(
+                    from_user=self.chat_id, post_text=post_text, post_status=post['status'],
+                    post_type=self.post_type.title(), emoji=self.emoji,
+                )
 
         return post_text
 
@@ -162,3 +169,17 @@ class Post:
             self.collection.update_one(
                 {'_id': ObjectId(post_id)}, {'$addToSet': {'likes': self.chat_id}}
             )
+
+    def open_close(self, post_id: str):
+        """
+        Close/Open post with post_id.
+        """
+        current_status = self.collection.find_one({'_id': ObjectId(post_id)})['status']
+        new_status = post_status.OPEN
+        if current_status == post_status.OPEN:
+            new_status = post_status.CLOSED
+
+        self.collection.update_one(
+            {'_id': ObjectId(post_id)},
+            {'$set': {'status': new_status}}
+        )

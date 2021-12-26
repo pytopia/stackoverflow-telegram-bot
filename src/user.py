@@ -5,6 +5,7 @@ from src.constants import states
 from src.data_models.answer import Answer
 from src.data_models.post import Post
 from src.data_models.question import Question
+from src.data_models.comment import Comment
 
 
 class User:
@@ -28,21 +29,19 @@ class User:
 
     @property
     def tracker(self):
-        return self.user.get('tracker')
+        return self.user.get('tracker', {})
 
     @property
     def post(self):
         """
         Return the right post handler based on user state or post type.
         """
-        if self.post_type == 'question':
+        if (self.post_type == 'question') or (self.state == states.ASK_QUESTION):
             post_handler = Question(mongodb=self.db, stackbot=self.stackbot)
-        elif self.post_type == 'answer':
+        elif (self.post_type == 'answer') or (self.state == states.ANSWER_QUESTION):
             post_handler = Answer(mongodb=self.db, stackbot=self.stackbot)
-        elif self.state == states.ASK_QUESTION:
-            post_handler = Question(mongodb=self.db, stackbot=self.stackbot)
-        elif self.state == states.ANSWER_QUESTION:
-            post_handler = Answer(mongodb=self.db, stackbot=self.stackbot)
+        elif (self.post_type == 'comment') or (self.state == states.COMMENT_POST):
+            post_handler = Comment(mongodb=self.db, stackbot=self.stackbot)
         else:
             post_handler = Post(mongodb=self.db, stackbot=self)
 
@@ -94,6 +93,12 @@ class User:
             {'$set': {'tracker': track_data}}
         )
 
+    def untrack(self, *args):
+        self.db.users.update_one(
+            {'chat.id': self.chat_id},
+            {'$unset': {f'tracker.{arg}': 1 for arg in args}}
+        )
+
     def delete_message(self, message_id):
         """
         Delete user message.
@@ -108,6 +113,7 @@ class User:
         old_preview_message_id = self.tracker.get('preview_message_id')
         if old_preview_message_id:
             self.delete_message(old_preview_message_id)
+            self.untrack('preview_message_id')
 
         if new_preview_message:
             self.track(preview_message_id=new_preview_message.message_id)

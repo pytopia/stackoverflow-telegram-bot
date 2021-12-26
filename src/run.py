@@ -8,6 +8,7 @@ from src.constants import inline_keys, keyboards, keys, states
 from src.db import db
 from src.filters import IsAdmin
 from src.user import User
+import re
 
 
 class StackBot:
@@ -83,8 +84,8 @@ class StackBot:
                 return
 
             self.user.update_state(states.ASK_QUESTION)
-            self.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.ask_question)
-            self.user.send_message(constants.ASK_QUESTION_START_MESSAGE.format(**vars(self.user)))
+            self.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.send_post)
+            self.user.send_message(constants.POST_START_MESSAGE.format(**vars(self.user)))
 
         @self.bot.message_handler(text=[keys.cancel])
         def cancel(message):
@@ -95,7 +96,7 @@ class StackBot:
             self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
             self.user.clean_preview()
 
-        @self.bot.message_handler(text=[keys.send_question, keys.send_answer])
+        @self.bot.message_handler(text=[keys.send_post])
         def send_post(message):
             """
             User sends a post.
@@ -118,16 +119,20 @@ class StackBot:
             """
             Respond to user according to the current user state.
             """
-            if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION]:
+            print(message.text)
+            if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
                 return
 
             post_metadata = dict()
             if self.user.state == states.ANSWER_QUESTION:
                 post_metadata.update({'question_id': self.user.tracker['post_id']})
+            if self.user.state == states.COMMENT_POST:
+                post_metadata.update({'post_id': self.user.tracker['post_id']})
 
             post_id = self.user.post.update(message, post_metadata)
             new_preview_message = self.user.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
             self.user.clean_preview(new_preview_message)
+
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -143,22 +148,21 @@ class StackBot:
 
             self.edit_message(call.message.chat.id, call.message.message_id, reply_markup=reply_markup)
 
-        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.answer)
-        def answer_callback(call):
+        @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.answer, inline_keys.comment])
+        def post_callback(call):
             """
             Answer inline key callback.
             """
-            self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.answer))
+            self.bot.answer_callback_query(call.id, text=emoji.emojize(call.data))
 
             # we store empty answer in db to track the question_id we are answering
-            question_id = self.get_call_info(call)['post_id']
-            self.user.track(action_on='question', post_id=question_id)
-            print('Done!')
+            post_id = self.get_call_info(call)['post_id']
+            self.user.track(post_id=post_id)
 
-            self.user.update_state(states.ANSWER_QUESTION)
+            self.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
             self.user.send_message(
-                constants.ANSWER_QUESTION_START_MESSAGE.format(**vars(self.user)),
-                reply_markup=keyboards.answer_question
+                constants.POST_START_MESSAGE.format(**vars(self.user)),
+                reply_markup=keyboards.send_post
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.back)
@@ -180,22 +184,46 @@ class StackBot:
             self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.like))
 
             # add user chat_id to likes
-            question_id = self.get_call_info(call)['post_id']
-            self.user.post.like(question_id)
+            post_id = self.get_call_info(call)['post_id']
+            self.user.post.like(post_id)
 
             # update main menu keyboard
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.user.post.get_keyboard(post_id=question_id)
+                reply_markup=self.user.post.get_keyboard(post_id=post_id)
             )
 
-        @bot.callback_query_handler(func=lambda call: True)
+        @bot.callback_query_handler(
+            func=lambda call: call.data in [inline_keys.open, inline_keys.close]
+        )
+        def open_close_post_callback(call):
+            self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.open))
+
+            # add user chat_id to likes
+            post_id = self.get_call_info(call)['post_id']
+            self.user.post.open_close(post_id)
+
+            # update main menu keyboard
+            self.edit_message(
+                call.message.chat.id, call.message.message_id,
+                text=self.user.post.get_text(post_id=post_id),
+                reply_markup=self.user.post.get_keyboard(post_id=post_id)
+            )
+
+        @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
             """
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
             self.bot.answer_callback_query(call.id, text=f'Sending file: {call.data}...')
             self.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
+
+        @bot.callback_query_handler(func=lambda call: True)
+        def not_implemented(call):
+            """
+            Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
+            """
+            self.answer_callback_query(call.id, text=f':cross_mark: {call.data} not impoleented.')
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):
         """
@@ -206,17 +234,20 @@ class StackBot:
 
         return message
 
-    def edit_message(self, chat_id, message_id, text=None, reply_markup=None):
+    def edit_message(self, chat_id, message_id, text=None, reply_markup=None, emojize: bool = True):
         """
         Edit telegram message text and/or reply_markup.
         """
         # if message text or reply_markup is the same as before, telegram raises an invalid request error
         # so we are doing try/catch to avoid this.
+        if emojize and text:
+            text = emoji.emojize(text)
+
         try:
             if reply_markup:
-                self.bot.edit_message_reply_markup(chat_id, message_id, reply_markup=reply_markup)
+                self.bot.edit_message_reply_markup(chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
             if text:
-                self.bot.edit_message_text(chat_id, message_id, text=text)
+                self.bot.edit_message_text(text=text, chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
         except Exception as e:
             logger.warning(e)
 
@@ -254,6 +285,9 @@ class StackBot:
     def get_call_info(self, call):
         return self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})
 
+    def answer_callback_query(self, call_id, text):
+        text = emoji.emojize(text)
+        self.bot.answer_callback_query(call_id, text=text)
 
 if __name__ == '__main__':
     logger.info('Bot started...')

@@ -18,6 +18,9 @@ class Answer(Post):
 
         # Send to the user who asked question
         question_owner = self.db.users.find_one({'chat.id': post['chat']['id']})
+
+        # TODO: Send to the user who follows the question
+        # question_followers_chat_id = []
         self.send_to_one(post['_id'], question_owner['chat']['id'])
 
     def get_actions_keyboard(self, post_id, chat_id):
@@ -27,9 +30,14 @@ class Answer(Post):
         question = self.db.question.find_one({'_id': ObjectId(answer['question_id'])})
         question_owner_chat_id = question['chat']['id']
 
-        keys = [inline_keys.back]
+        keys = [inline_keys.back, inline_keys.follow, inline_keys.comment]
         if chat_id == answer_owner_chat_id:
-            keys.extend([inline_keys.edit, inline_keys.delete])
+            current_status = answer['status']
+            if current_status == 'open':
+                keys.append(inline_keys.close)
+            else:
+                keys.append(inline_keys.open)
+            keys.append(inline_keys.edit)
 
         if chat_id == question_owner_chat_id:
             keys.append(inline_keys.accept)

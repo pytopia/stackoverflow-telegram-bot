@@ -1,4 +1,4 @@
-from src.constants import inline_keys
+from src.constants import inline_keys, post_status
 from src.utils.keyboard import create_keyboard
 
 from data_models.post import Post
@@ -22,7 +22,13 @@ class Question(Post):
 
         keys = [inline_keys.back, inline_keys.answer, inline_keys.follow, inline_keys.comment]
         if chat_id == question_owner_chat_id:
-            keys.extend([inline_keys.delete, inline_keys.edit])
+            current_status = question['status']
+
+            if current_status == post_status.OPEN:
+                keys.append(inline_keys.close)
+            else:
+                keys.append(inline_keys.open)
+            keys.append(inline_keys.edit)
 
         reply_markup = create_keyboard(*keys, is_inline=True)
         return reply_markup

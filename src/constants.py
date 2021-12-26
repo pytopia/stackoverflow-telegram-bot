@@ -14,7 +14,7 @@ keys = SimpleNamespace(
     yes=':white_check_mark: Yes',
     no=':negative_squared_cross_mark: No',
     ask_question=':red_question_mark: Ask a Question',
-    send_question=':envelope_with_arrow: Send Question',
+    send_post=':envelope_with_arrow: Send',
     send_answer=':envelope_with_arrow: Send Answer',
 )
 
@@ -29,26 +29,28 @@ inline_keys = SimpleNamespace(
     accept=':check_mark_button: Accept',
     comment=':speech_balloon: Comment',
     delete=':wastebasket: Delete',
+    open=':green_circle: Open',
+    close=':red_circle: Close',
     edit=':pencil: Edit',
 )
 
 keyboards = SimpleNamespace(
     main=create_keyboard(keys.ask_question, keys.settings),
-    ask_question=create_keyboard(keys.cancel, keys.send_question),
-    answer_question=create_keyboard(keys.cancel, keys.send_answer),
+    send_post=create_keyboard(keys.cancel, keys.send_post),
 )
 
 states = SimpleNamespace(
     MAIN='MAIN',
     ASK_QUESTION='ASK_QUESTION',
     ANSWER_QUESTION='ANSWER_QUESTION',
+    COMMENT_POST='COMMENT_POST',
 )
 
 post_status = SimpleNamespace(
-    PREP='in_prep',
-    DRAFT='draft',
-    CLOSED='closed',
-    OPEN='open',
+    PREP=':white_circle: In Preparation',
+    DRAFT=':yello_circle: Draft',
+    CLOSED=':red_circle: Closed',
+    OPEN=':green_circle: Open',
 )
 
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
@@ -64,26 +66,23 @@ POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
 EMPTY_POST_MESSAGE = ':cross_mark: {post_type} is empty!'
 POST_PREVIEW_MESSAGE = (
     ':pencil: <strong>{post_type} Preview</strong>\n\n'
-    '{post_text}\n'  # Question is filled later
+    '{post_text}\n'
     f'{"_" * 10}\n'
     f'When done, click <strong>send</strong>.'
 )
 SEND_POST_TO_ALL_MESSAGE = (
+    '{emoji} <strong>New {post_type}</strong>\n'
     ':bust_in_silhouette: From: {from_user}\n'
-    '{emoji} <strong>New {post_type}</strong>\n\n'
+    '{post_status}\n\n'
     '{post_text}'
+)
+POST_START_MESSAGE = (
+    ":pencil: <strong>{first_name}</strong>, send your {post_type} here.\n"
+    f"When done, click <strong>{keys.send_post}</strong>."
 )
 
 # Question Templates
 EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question'
-ASK_QUESTION_START_MESSAGE = (
-    # first_name is filled later
-    ":pencil: <strong>{first_name}</strong>, send your question here.\n"
-    f"When done, click <strong>{keys.send_question}</strong>."
-)
-
-# Answer Templates
-ANSWER_QUESTION_START_MESSAGE = ':pencil: <strong>{first_name}</strong>, send your answer here:\n\n'
 
 # File Templates
 FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'
