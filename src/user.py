@@ -24,6 +24,10 @@ class User:
     def state(self):
         return self.user.get('state')
 
+    @property
+    def tracker(self):
+        return self.user.get('tracker')
+
     def send_message(self, text, reply_markup=None, emojize=True):
         """
         Send message to user.
@@ -46,4 +50,20 @@ class User:
             {'$set': {'state': states.MAIN}}
         )
 
-        self.db.questions.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
+        for collection in [self.db.question, self.db.answer]:
+            collection.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
+
+    def exists(self):
+        if self.db.users.find_one({'chat.id': self.chat_id}) is None:
+            return False
+
+        return True
+
+    def track(self, **kwargs):
+        """
+        Track user actions.
+        """
+        self.db.users.update_one(
+            {'chat.id': self.chat_id},
+            {'$set': {'tracker': kwargs}}
+        )

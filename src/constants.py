@@ -10,9 +10,7 @@ keys = SimpleNamespace(
     back=':arrow_left: Back',
     next=':arrow_right: Next',
     add=':heavy_plus_sign: Add',
-    edit=':pencil: Edit',
     save=':check_mark_button: Save',
-    delete=':wastebasket: Delete',
     yes=':white_check_mark: Yes',
     no=':negative_squared_cross_mark: No',
     ask_question=':red_question_mark: Ask a Question',
@@ -26,7 +24,11 @@ inline_keys = SimpleNamespace(
     answer=':bright_button: Answer',
     follow=':plus: Follow',
     unfollow=':minus: Unfollow',
-    like=':red_heart: Like'
+    like=':red_heart: Like',
+    accept=':check_mark_button: Accept',
+    comment=':speech_balloon: Comment',
+    delete=':wastebasket: Delete',
+    edit=':pencil: Edit',
 )
 
 keyboards = SimpleNamespace(
@@ -43,10 +45,9 @@ states = SimpleNamespace(
 
 post_status = SimpleNamespace(
     PREP='in_prep',
-    EDIT='edit',
     DRAFT='draft',
-    DELETE='delete',
-    SENT='sent',
+    CLOSED='closed',
+    OPEN='open',
 )
 
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
@@ -62,26 +63,27 @@ ASK_QUESTION_START_MESSAGE = (
 )
 
 WELCOME_MESSAGE = "Hey <strong>{first_name}</strong>!"
-QUESTION_SAVE_SUCCESS_MESSAGE = ":check_mark_button: Question saved successfully."
+POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
 CANCEL_MESSAGE = ':cross_mark: Canceled.'
 
 # Question Templates
-QUESTION_PREVIEW_MESSAGE = (
-    ':pencil: <strong>Question Preview</strong>\n\n'
-    '{question}\n'  # Question is filled later
+POST_PREVIEW_MESSAGE = (
+    ':pencil: <strong>{post_type} Preview</strong>\n\n'
+    '{post_text}\n'  # Question is filled later
     f'{"_" * 10}\n'
-    f'When done, click <strong>{keys.send_question}</strong>.'
+    f'When done, click <strong>send</strong>.'
 )
 
-SEND_QUESTION_TO_ALL_MESSAGE = (
+SEND_POST_TO_ALL_MESSAGE = (
     ':bust_in_silhouette: From: {from_user}\n'
-    ':red_question_mark: <strong>New Question</strong>\n\n'
-    '{question}'
+    '{emoji} <strong>New {post_type}</strong>\n\n'
+    '{post_text}'
 )
 
 SEND_TO_ALL_SUCCESS_MESSAGE = ':check_mark_button: Question sent successfully to all users.'
 
-EMPTY_QUESTION_MESSAGE = ':cross_mark: Question is empty!'
+EMPTY_POST_MESSAGE = ':cross_mark: {post_type} is empty!'
+
 EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question'
 FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'
 

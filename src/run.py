@@ -1,15 +1,17 @@
 import emoji
+from bson.objectid import ObjectId
 from loguru import logger
 from telebot import custom_filters
 
 from src import constants
+from src.answer import Answer
 from src.bot import bot
 from src.constants import inline_keys, keyboards, keys, post_status, states
 from src.db import db
 from src.filters import IsAdmin
+from src.post import Post
 from src.question import Question
 from src.user import User
-from src.utils.keyboard import create_keyboard
 
 
 class StackBot:
@@ -26,7 +28,8 @@ class StackBot:
         self.bot.add_custom_filter(custom_filters.TextStartsFilter())
 
         # question object to handle send/recieve questions
-        self.question = Question(mongodb=self.db, stackbot=self, post_type='question')
+        self.question = Question(mongodb=self.db, stackbot=self)
+        self.answer = Answer(mongodb=self.db, stackbot=self)
 
         # register handlers
         self.handlers()
@@ -36,7 +39,31 @@ class StackBot:
         logger.info('Bot is running...')
         self.bot.infinity_polling()
 
+    def get_callback_post(self, call):
+        post_type = self.get_call_info(call)['post_type']
+        if post_type == 'question':
+            return self.question
+        elif post_type == 'answer':
+            return self.answer
+
+    def get_message_post(self):
+        if self.user.state == states.ASK_QUESTION:
+            return self.question
+        elif self.user.state == states.ANSWER_QUESTION:
+            return self.answer
+
+        return Post(mongodb=self.db, stackbot=self)
+
     def handlers(self):
+        @self.bot.message_handler(commands=['start'])
+        def start(message):
+            """
+            /start command handler.
+            """
+            self.user.send_message(constants.WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
+            self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
+            self.user.reset()
+
         @self.bot.middleware_handler(update_types=['message'])
         def init_handler(bot_instance, message):
             """
@@ -44,6 +71,13 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(chat_id=message.chat.id, mongodb=self.db, stackbot=self, message=message)
+            if not self.user.exists():
+                self.user.reset()
+                return
+
+            # self.post could be either question or answer handler
+            # Answer() or Question() classes are inherited from Post() class
+            self.post = self.get_message_post()
 
             # Demojize text
             if message.content_type == 'text':
@@ -56,18 +90,10 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(chat_id=call.message.chat.id, mongodb=self.db, stackbot=self, message=call.message)
+            self.post = self.get_callback_post(call)
 
             # Getting updated user before message reaches any other handler
             call.data = emoji.demojize(call.data)
-
-        @self.bot.message_handler(commands=['start'])
-        def start(message):
-            """
-            /start command handler.
-            """
-            self.user.send_message(constants.WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
-            self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
-            self.user.reset()
 
         @self.bot.message_handler(text=[keys.ask_question])
         def ask_question(message):
@@ -84,31 +110,23 @@ class StackBot:
         @self.bot.message_handler(text=[keys.cancel])
         def cancel(message):
             """
-            User cancels question.
+            User cancels sending a post.
             """
             self.user.reset()
             self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
 
-        @self.bot.message_handler(text=[keys.send_question])
-        def send_question(message):
+        @self.bot.message_handler(text=[keys.send_question, keys.send_answer])
+        def send_post(message):
             """
-            User sends question.
-
-            If question is empty, user can continue.
+            User sends a post.
             """
-            if not self.user.state == states.ASK_QUESTION:
-                return
-
-            # Check if question is empty
-            question = self.db.questions.find_one({'chat.id': message.chat.id, 'status': post_status.PREP})
-            if not question:
-                self.user.send_message(constants.EMPTY_QUESTION_MESSAGE)
-                return
-
-            # Send question to all users
-            self.question.save(question['_id'])
-            self.user.send_message(constants.QUESTION_SAVE_SUCCESS_MESSAGE, reply_markup=keyboards.main)
-            self.question.send_to_all(question['_id'])
+            self.post.submit(chat_id=message.chat.id)
+            self.user.send_message(
+                text=constants.POST_OPEN_SUCCESS_MESSAGE.format(
+                    post_type=self.post.post_type.title(),
+                ),
+                reply_markup=keyboards.main
+            )
 
             # Reset user state and data
             self.user.reset()
@@ -120,12 +138,15 @@ class StackBot:
             Respond to user according to the current user state.
             """
             self.user.send_message(f'State: <strong>{self.user.state}</strong>')
-            if self.user.state == states.ASK_QUESTION:
-                question_id = self.question.update(message)
-                self.question.send_to_one(post_id=question_id, chat_id=message.chat.id, preview=True)
+            if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION]:
+                return
 
-            elif self.user.state == states.ANSWER_QUESTION:
-                answer_id = self.answer.update(message)
+            post_metadata = dict()
+            if self.user.state == states.ANSWER_QUESTION:
+                post_metadata.update({'question_id': self.user.tracker['post_id']})
+
+            post_id = self.post.update(message, post_metadata)
+            self.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -135,13 +156,13 @@ class StackBot:
             """
             self.bot.answer_callback_query(call.id, text=inline_keys.actions)
 
-            # actions keyboard
+            # actions keyboard'
+            post_id = self.get_call_info(call)['post_id']
+            reply_markup = self.post.get_actions_keyboard(post_id, call.message.chat.id)
+
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=create_keyboard(
-                    inline_keys.back, inline_keys.answer, inline_keys.follow, inline_keys.unfollow,
-                    is_inline=True
-                )
+                reply_markup=reply_markup,
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.answer)
@@ -150,6 +171,11 @@ class StackBot:
             Answer inline key callback.
             """
             self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.answer))
+
+            # we store empty answer in db to track the question_id we are answering
+            question_id = self.get_call_info(call)['post_id']
+            self.user.track(action_on='question', post_id=question_id)
+
             self.user.update_state(states.ANSWER_QUESTION)
             self.user.send_message(
                 constants.ANSWER_QUESTION_START_MESSAGE.format(**vars(self.user)),
@@ -164,10 +190,10 @@ class StackBot:
             self.bot.answer_callback_query(call.id, text=inline_keys.back)
 
             # main menu keyboard
-            question_id = self.get_call_info(call)['question_id']
+            post_id = self.get_call_info(call)['post_id']
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.question.get_post_keyboard(post_id=question_id)
+                reply_markup=self.post.get_keyboard(post_id=post_id)
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.like)
@@ -176,10 +202,10 @@ class StackBot:
 
             # add user chat_id to likes
             question_id = self.get_call_info(call)['post_id']
-            self.question.like(call.message.chat.id, question_id)
+            self.post.like(call.message.chat.id, question_id)
             self.bot.edit_message_reply_markup(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.question.get_post_keyboard(post_id=question_id)
+                reply_markup=self.post.get_keyboard(post_id=question_id)
             )
 
         @bot.callback_query_handler(func=lambda call: True)
@@ -187,7 +213,6 @@ class StackBot:
             """
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
-            print(call.data)
             self.bot.answer_callback_query(call.id, text=f'Sending file: {call.data}...')
             self.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
@@ -225,6 +250,7 @@ class StackBot:
 
     def get_call_info(self, call):
         return self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})
+
 
 if __name__ == '__main__':
     logger.info('Bot started...')
