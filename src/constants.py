@@ -25,6 +25,7 @@ inline_keys = SimpleNamespace(
     follow=':plus: Follow',
     unfollow=':minus: Unfollow',
     like=':red_heart: Like',
+    unlike=':white_heart: Like',
     accept=':check_mark_button: Accept',
     comment=':speech_balloon: Comment',
     delete=':wastebasket: Delete',

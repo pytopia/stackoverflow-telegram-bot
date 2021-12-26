@@ -140,9 +140,9 @@ class Post:
 
         # add actions, like, etc. keys
         num_likes = len(post.get('likes', []))
-        like_key_text = '' if num_likes == 0 else f'{inline_keys.like} {num_likes}'
+        new_like_key = f'{inline_keys.like} ({num_likes})' if num_likes else inline_keys.unlike
 
-        keys.extend([inline_keys.actions, like_key_text or inline_keys.like])
+        keys.extend([inline_keys.actions, new_like_key])
         callback_data.extend([inline_keys.actions, inline_keys.like])
 
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
