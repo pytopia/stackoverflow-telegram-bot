@@ -1,9 +1,8 @@
 import concurrent.futures
 from itertools import repeat
 
-from bson.objectid import ObjectId
-
 import constants
+from bson.objectid import ObjectId
 from src.constants import inline_keys, post_status
 from src.utils.common import human_readable_size
 from src.utils.keyboard import create_keyboard
@@ -142,7 +141,7 @@ class Post:
         Like post with post_id.
         """
         self.collection.update_one(
-            {'_id': ObjectId(post_id)}, {'$push': {'likes': chat_id}}
+            {'_id': ObjectId(post_id)}, {'$addToSet': {'likes': chat_id}}
         )
 
     def submit(self, chat_id):

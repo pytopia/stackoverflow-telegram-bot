@@ -17,3 +17,5 @@ export PYTHONPATH=${PWD}
 ```
 python src/run.py
 ```
+
+**Note:** You need to set up your mongodb database first in `src/db.py`.

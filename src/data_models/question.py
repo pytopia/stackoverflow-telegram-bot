@@ -1,6 +1,7 @@
 from src.constants import inline_keys
-from src.post import Post
 from src.utils.keyboard import create_keyboard
+
+from data_models.post import Post
 
 
 class Question(Post):

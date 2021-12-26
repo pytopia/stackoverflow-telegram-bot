@@ -1,16 +1,15 @@
 import emoji
-from bson.objectid import ObjectId
 from loguru import logger
 from telebot import custom_filters
 
+from data_models.answer import Answer
+from data_models.post import Post
+from data_models.question import Question
 from src import constants
-from src.answer import Answer
 from src.bot import bot
-from src.constants import inline_keys, keyboards, keys, post_status, states
+from src.constants import inline_keys, keyboards, keys, states
 from src.db import db
 from src.filters import IsAdmin
-from src.post import Post
-from src.question import Question
 from src.user import User
 
 
@@ -160,10 +159,7 @@ class StackBot:
             post_id = self.get_call_info(call)['post_id']
             reply_markup = self.post.get_actions_keyboard(post_id, call.message.chat.id)
 
-            self.bot.edit_message_reply_markup(
-                call.message.chat.id, call.message.message_id,
-                reply_markup=reply_markup,
-            )
+            self.edit_message(call.message.chat.id, call.message.message_id, reply_markup=reply_markup)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.answer)
         def answer_callback(call):
@@ -191,7 +187,7 @@ class StackBot:
 
             # main menu keyboard
             post_id = self.get_call_info(call)['post_id']
-            self.bot.edit_message_reply_markup(
+            self.edit_message(
                 call.message.chat.id, call.message.message_id,
                 reply_markup=self.post.get_keyboard(post_id=post_id)
             )
@@ -203,7 +199,9 @@ class StackBot:
             # add user chat_id to likes
             question_id = self.get_call_info(call)['post_id']
             self.post.like(call.message.chat.id, question_id)
-            self.bot.edit_message_reply_markup(
+
+            # update main menu keyboard
+            self.edit_message(
                 call.message.chat.id, call.message.message_id,
                 reply_markup=self.post.get_keyboard(post_id=question_id)
             )
@@ -224,6 +222,20 @@ class StackBot:
         message = self.bot.send_message(chat_id, text, reply_markup=reply_markup)
 
         return message
+
+    def edit_message(self, chat_id, message_id, text=None, reply_markup=None):
+        """
+        Edit telegram message text and/or reply_markup.
+        """
+        # if message text or reply_markup is the same as before, telegram raises an invalid request error
+        # so we are doing try/catch to avoid this.
+        try:
+            if reply_markup:
+                self.bot.edit_message_reply_markup(chat_id, message_id, reply_markup=reply_markup)
+            if text:
+                self.bot.edit_message_text(chat_id, message_id, text=text)
+        except Exception as e:
+            logger.warning(e)
 
     def send_file(self, chat_id, file_unique_id, message_id=None):
         """
