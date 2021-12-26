@@ -14,7 +14,11 @@ class Question(Post):
 
     def submit(self):
         post = super().submit()
+        if not post:
+            return
+
         self.send_to_all(post['_id'])
+        return post
 
     def get_actions_keyboard(self, post_id, chat_id):
         question = self.collection.find_one({'_id': post_id})

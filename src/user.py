@@ -70,7 +70,7 @@ class User:
             {'$set': {'state': states.MAIN}}
         )
 
-        for collection in [self.db.question, self.db.answer]:
+        for collection in [self.db.question, self.db.answer, self.db.comment]:
             collection.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
 
     def exists(self):

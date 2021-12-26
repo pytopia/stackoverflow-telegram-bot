@@ -66,10 +66,12 @@ class StackBot:
             Initialize user to use in other handlers.
             """
             # Getting updated user before message reaches any other handler
+            post_type = self.get_call_info(call)['post_type']
+
             self.user = User(
                 chat_id=call.message.chat.id, mongodb=self.db,
                 stackbot=self, first_name=call.message.chat.first_name,
-                post_type=self.get_call_info(call)['post_type']
+                post_type=post_type
             )
 
             # Demojize callback data
@@ -101,7 +103,11 @@ class StackBot:
             """
             User sends a post.
             """
-            self.user.post.submit()
+            submitted_post = self.user.post.submit()
+            if not submitted_post:
+                self.user.send_message(constants.EMPTY_POST_MESSAGE)
+                return
+
             self.user.send_message(
                 text=constants.POST_OPEN_SUCCESS_MESSAGE.format(
                     post_type=self.user.post.post_type.title(),
@@ -123,6 +129,13 @@ class StackBot:
             if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
                 return
 
+            supported_contents = self.user.post.supported_content_types
+            if message.content_type not in supported_contents:
+                self.user.send_message(
+                    constants.UNSUPPORTED_CONTENT_TYPE_MESSAGE.format(supported_contents=' '.join(supported_contents))
+                )
+                return
+
             post_metadata = dict()
             if self.user.state == states.ANSWER_QUESTION:
                 post_metadata.update({'question_id': self.user.tracker['post_id']})
@@ -132,7 +145,6 @@ class StackBot:
             post_id = self.user.post.update(message, post_metadata)
             new_preview_message = self.user.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
             self.user.clean_preview(new_preview_message)
-
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -154,11 +166,13 @@ class StackBot:
             Answer inline key callback.
             """
             self.bot.answer_callback_query(call.id, text=emoji.emojize(call.data))
+            if call.data == inline_keys.answer:
+                self.user.post_type = 'answer'
+            elif call.data == inline_keys.comment:
+                self.user.post_type = 'comment'
 
-            # we store empty answer in db to track the question_id we are answering
             post_id = self.get_call_info(call)['post_id']
             self.user.track(post_id=post_id)
-
             self.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
             self.user.send_message(
                 constants.POST_START_MESSAGE.format(**vars(self.user)),

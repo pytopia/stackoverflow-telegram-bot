@@ -63,7 +63,7 @@ CANCEL_MESSAGE = ':cross_mark: Canceled.'
 
 # Post Templates
 POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
-EMPTY_POST_MESSAGE = ':cross_mark: {post_type} is empty!'
+EMPTY_POST_MESSAGE = ':cross_mark: Empty!'
 POST_PREVIEW_MESSAGE = (
     ':pencil: <strong>{post_type} Preview</strong>\n\n'
     '{post_text}\n'
@@ -77,8 +77,8 @@ SEND_POST_TO_ALL_MESSAGE = (
     '{post_text}'
 )
 POST_START_MESSAGE = (
-    ":pencil: <strong>{first_name}</strong>, send your {post_type} here.\n"
-    f"When done, click <strong>{keys.send_post}</strong>."
+    ":pencil: <strong>{first_name}</strong>, send your <strong>{post_type}</strong> here.\n\n"
+    f"When done, click {keys.send_post}."
 )
 
 # Question Templates
@@ -86,3 +86,7 @@ EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question'
 
 # File Templates
 FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'
+UNSUPPORTED_CONTENT_TYPE_MESSAGE = (
+    ':cross_mark: Unsupported content type.\n\n'
+    ':safety_pin: Allowed types: {supported_contents}'
+)

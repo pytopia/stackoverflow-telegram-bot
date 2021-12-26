@@ -59,8 +59,10 @@ class Post:
         Save post with post_id to database.
         """
         post = self.collection.find_one({'chat.id': self.chat_id, 'status': post_status.PREP})
-        self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
+        if not post:
+            return
 
+        self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
         return post
 
     def send_to_one(self, post_id: str, chat_id: str, preview: bool = False):
