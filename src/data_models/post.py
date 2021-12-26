@@ -146,10 +146,17 @@ class Post:
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
 
-    def like(self, post_id: str, chat_id: str = None):
+    def like(self, post_id: str):
         """
-        Like post with post_id.
+        Like post with post_id or unlike post if already liked.
         """
-        self.collection.update_one(
-            {'_id': ObjectId(post_id)}, {'$addToSet': {'likes': self.chat_id}}
-        )
+        liked_before = self.collection.find_one({'_id': ObjectId(post_id), 'likes': self.chat_id})
+
+        if liked_before:
+            # unlike if already liked it
+            self.collection.update_one({'_id': ObjectId(post_id)}, {'$pull': {'likes': self.chat_id}})
+        else:
+            # like
+            self.collection.update_one(
+                {'_id': ObjectId(post_id)}, {'$addToSet': {'likes': self.chat_id}}
+            )
