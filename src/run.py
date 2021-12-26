@@ -235,12 +235,14 @@ class StackBot:
         )
 
     def file_unique_id_to_content(self, file_unique_id):
-        collections = ['questions', 'answers']
+        collections = ['question', 'answer']
         for collection in collections:
             collection = getattr(self.db, collection)
             query_result = collection.find_one({'content.file_unique_id': file_unique_id}, {'content.$': 1})
-            content = query_result['content'][0]
+            if not query_result:
+                continue
 
+            content = query_result['content'][0]
             return content['file_id'], content['content_type'], content.get('mime_type')
 
     def delete_message(self, chat_id, message_id):
