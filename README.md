@@ -22,3 +22,6 @@ python src/run.py
 
 ## UML Diagram
 <img src="./uml.png" alt="UML Diagram" width="50%">
+
+## User Journey
+<img src="./user_journey.png" alt="User Journey" width="50%">
