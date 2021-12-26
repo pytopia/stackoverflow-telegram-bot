@@ -87,7 +87,27 @@ class User:
         """
         Track user actions and any other data.
         """
+        track_data = self.tracker
+        track_data.update(kwargs)
         self.db.users.update_one(
             {'chat.id': self.chat_id},
-            {'$set': {'tracker': kwargs}}
+            {'$set': {'tracker': track_data}}
         )
+
+    def delete_message(self, message_id):
+        """
+        Delete user message.
+        """
+        self.stackbot.delete_message(chat_id=self.chat_id, message_id=message_id)
+
+    def clean_preview(self, new_preview_message=None):
+        """
+        Preview message is used to show the user the post that is going to be created.
+        This method deletes the previous preview message and keeps track of the new one.
+        """
+        old_preview_message_id = self.tracker.get('preview_message_id')
+        if old_preview_message_id:
+            self.delete_message(old_preview_message_id)
+
+        if new_preview_message:
+            self.track(preview_message_id=new_preview_message.message_id)

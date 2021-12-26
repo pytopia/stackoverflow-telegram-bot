@@ -93,6 +93,7 @@ class StackBot:
             """
             self.user.reset()
             self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
+            self.user.clean_preview()
 
         @self.bot.message_handler(text=[keys.send_question, keys.send_answer])
         def send_post(message):
@@ -109,6 +110,7 @@ class StackBot:
 
             # Reset user state and data
             self.user.reset()
+            self.user.clean_preview()
 
         # Handles all other messages with the supported content_types
         @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
@@ -124,7 +126,8 @@ class StackBot:
                 post_metadata.update({'question_id': self.user.tracker['post_id']})
 
             post_id = self.user.post.update(message, post_metadata)
-            self.user.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
+            new_preview_message = self.user.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
+            self.user.clean_preview(new_preview_message)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -150,6 +153,7 @@ class StackBot:
             # we store empty answer in db to track the question_id we are answering
             question_id = self.get_call_info(call)['post_id']
             self.user.track(action_on='question', post_id=question_id)
+            print('Done!')
 
             self.user.update_state(states.ANSWER_QUESTION)
             self.user.send_message(
@@ -238,6 +242,12 @@ class StackBot:
             content = query_result['content'][0]
 
             return content['file_id'], content['content_type'], content.get('mime_type')
+
+    def delete_message(self, chat_id, message_id):
+        try:
+            self.bot.delete_message(chat_id, message_id)
+        except Exception as e:
+            logger.warning('Error deleting message: Message not found.')
 
     def get_call_info(self, call):
         return self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})

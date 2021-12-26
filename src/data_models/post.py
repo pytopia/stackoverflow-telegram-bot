@@ -80,7 +80,7 @@ class Post:
                 from_user=chat_id, post_text=post_text,
                 post_type=self.post_type.title(), emoji=self.emoji
             )
-        message = self.stackbot.send_message(
+        sent_message = self.stackbot.send_message(
             chat_id=chat_id, text=post_formatted_text,
             reply_markup=post_keyboard
         )
@@ -88,10 +88,12 @@ class Post:
         self.db.callback_data.insert_one({
             'post_id': post_id,
             'chat_id': chat_id,
-            'message_id': message.message_id,
+            'message_id': sent_message.message_id,
             'post_type': self.post_type,
             'preview': preview,
         })
+
+        return sent_message
 
     def send_to_all(self, post_id: str):
         """
