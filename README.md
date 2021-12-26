@@ -1,6 +1,8 @@
-# Template for Telegram Bot
+# Stackoverflow Telegram Bot
 
-Template to create a telegram bot in python.
+Stackoverflow Telegram Bot is a Telegram bot that allows you to send questions to other users and receive answers from them, similar to Stackoverflow.com.
+
+Users can send question and receive answers, upvote/downvote, like, bookmark posts, and more.
 
 ## How to Run
 1. Set your telegram bot token as environment variable `TELEGRAM_BOT_TOKEN`:
