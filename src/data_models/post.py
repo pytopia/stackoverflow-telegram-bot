@@ -12,11 +12,12 @@ class Post:
     """
     General class for all types of posts: Question, Answer, Comment, etc.
     """
-    def __init__(self, mongodb, stackbot):
+    def __init__(self, mongodb, stackbot, chat_id=None):
         self.db = mongodb
         self.stackbot = stackbot
         self.post_type = self.__class__.__name__.lower()
         self.collection = getattr(self.db, self.post_type)
+        self.chat_id = chat_id
 
     def update(self, message, post_metadata):
         """
@@ -49,6 +50,15 @@ class Post:
         })['_id']
         return _id
 
+    def submit(self):
+        """
+        Save post with post_id to database.
+        """
+        post = self.collection.find_one({'chat.id': self.chat_id, 'status': post_status.PREP})
+        self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
+
+        return post
+
     def send_to_one(self, post_id: str, chat_id: str, preview: bool = False):
         """
         Send post with post_id to user with chat_id.
@@ -58,7 +68,7 @@ class Post:
         :param preview: If True, send post in preview mode. Default is False.
         """
         post_keyboard = self.get_keyboard(post_id)
-        post_text = self.get_post_text(post_id)
+        post_text = self.get_text(post_id)
 
         # Preview to user mode or send to other users
         if preview:
@@ -91,7 +101,7 @@ class Post:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.map(self.send_to_one, repeat(post_id), chat_ids)
 
-    def get_post_text(self, post_id: str):
+    def get_text(self, post_id: str):
         """
         Get post text with post_id.
 
@@ -136,19 +146,10 @@ class Post:
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
 
-    def like(self, chat_id, post_id):
+    def like(self, post_id: str, chat_id: str = None):
         """
         Like post with post_id.
         """
         self.collection.update_one(
-            {'_id': ObjectId(post_id)}, {'$addToSet': {'likes': chat_id}}
+            {'_id': ObjectId(post_id)}, {'$addToSet': {'likes': self.chat_id}}
         )
-
-    def submit(self, chat_id):
-        """
-        Save post with post_id to database.
-        """
-        post = self.collection.find_one({'chat.id': chat_id, 'status': post_status.PREP})
-        self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
-
-        return post

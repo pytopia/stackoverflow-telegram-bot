@@ -2,9 +2,6 @@ import emoji
 from loguru import logger
 from telebot import custom_filters
 
-from data_models.answer import Answer
-from data_models.post import Post
-from data_models.question import Question
 from src import constants
 from src.bot import bot
 from src.constants import inline_keys, keyboards, keys, states
@@ -26,10 +23,6 @@ class StackBot:
         self.bot.add_custom_filter(custom_filters.TextMatchFilter())
         self.bot.add_custom_filter(custom_filters.TextStartsFilter())
 
-        # question object to handle send/recieve questions
-        self.question = Question(mongodb=self.db, stackbot=self)
-        self.answer = Answer(mongodb=self.db, stackbot=self)
-
         # register handlers
         self.handlers()
 
@@ -37,21 +30,6 @@ class StackBot:
         # run bot with polling
         logger.info('Bot is running...')
         self.bot.infinity_polling()
-
-    def get_callback_post(self, call):
-        post_type = self.get_call_info(call)['post_type']
-        if post_type == 'question':
-            return self.question
-        elif post_type == 'answer':
-            return self.answer
-
-    def get_message_post(self):
-        if self.user.state == states.ASK_QUESTION:
-            return self.question
-        elif self.user.state == states.ANSWER_QUESTION:
-            return self.answer
-
-        return Post(mongodb=self.db, stackbot=self)
 
     def handlers(self):
         @self.bot.message_handler(commands=['start'])
@@ -69,14 +47,13 @@ class StackBot:
             Initialize user to use in other handlers.
             """
             # Getting updated user before message reaches any other handler
-            self.user = User(chat_id=message.chat.id, mongodb=self.db, stackbot=self, message=message)
+            self.user = User(
+                chat_id=message.chat.id, mongodb=self.db,
+                stackbot=self, first_name=message.chat.first_name,
+            )
             if not self.user.exists():
                 self.user.reset()
                 return
-
-            # self.post could be either question or answer handler
-            # Answer() or Question() classes are inherited from Post() class
-            self.post = self.get_message_post()
 
             # Demojize text
             if message.content_type == 'text':
@@ -88,10 +65,13 @@ class StackBot:
             Initialize user to use in other handlers.
             """
             # Getting updated user before message reaches any other handler
-            self.user = User(chat_id=call.message.chat.id, mongodb=self.db, stackbot=self, message=call.message)
-            self.post = self.get_callback_post(call)
+            self.user = User(
+                chat_id=call.message.chat.id, mongodb=self.db,
+                stackbot=self, first_name=call.message.chat.first_name,
+                post_type=self.get_call_info(call)['post_type']
+            )
 
-            # Getting updated user before message reaches any other handler
+            # Demojize callback data
             call.data = emoji.demojize(call.data)
 
         @self.bot.message_handler(text=[keys.ask_question])
@@ -119,10 +99,10 @@ class StackBot:
             """
             User sends a post.
             """
-            self.post.submit(chat_id=message.chat.id)
+            self.user.post.submit()
             self.user.send_message(
                 text=constants.POST_OPEN_SUCCESS_MESSAGE.format(
-                    post_type=self.post.post_type.title(),
+                    post_type=self.user.post.post_type.title(),
                 ),
                 reply_markup=keyboards.main
             )
@@ -144,8 +124,8 @@ class StackBot:
             if self.user.state == states.ANSWER_QUESTION:
                 post_metadata.update({'question_id': self.user.tracker['post_id']})
 
-            post_id = self.post.update(message, post_metadata)
-            self.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
+            post_id = self.user.post.update(message, post_metadata)
+            self.user.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -157,7 +137,7 @@ class StackBot:
 
             # actions keyboard'
             post_id = self.get_call_info(call)['post_id']
-            reply_markup = self.post.get_actions_keyboard(post_id, call.message.chat.id)
+            reply_markup = self.user.post.get_actions_keyboard(post_id, call.message.chat.id)
 
             self.edit_message(call.message.chat.id, call.message.message_id, reply_markup=reply_markup)
 
@@ -189,7 +169,7 @@ class StackBot:
             post_id = self.get_call_info(call)['post_id']
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.post.get_keyboard(post_id=post_id)
+                reply_markup=self.user.post.get_keyboard(post_id=post_id)
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.like)
@@ -198,12 +178,12 @@ class StackBot:
 
             # add user chat_id to likes
             question_id = self.get_call_info(call)['post_id']
-            self.post.like(call.message.chat.id, question_id)
+            self.user.post.like(question_id)
 
             # update main menu keyboard
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.post.get_keyboard(post_id=question_id)
+                reply_markup=self.user.post.get_keyboard(post_id=question_id)
             )
 
         @bot.callback_query_handler(func=lambda call: True)

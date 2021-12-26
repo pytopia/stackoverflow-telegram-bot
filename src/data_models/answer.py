@@ -9,12 +9,12 @@ class Answer(Post):
     """
     Class to handle the answers sent by the users to a question.
     """
-    def __init__(self, mongodb, stackbot):
+    def __init__(self, mongodb, stackbot, chat_id=None):
         super().__init__(mongodb, stackbot)
         self.emoji = ':bright_button:'
 
-    def submit(self, chat_id):
-        post = super().submit(chat_id)
+    def submit(self):
+        post = super().submit()
 
         # Send to the user who asked question
         question_owner = self.db.users.find_one({'chat.id': post['chat']['id']})

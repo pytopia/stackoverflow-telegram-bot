@@ -8,12 +8,12 @@ class Question(Post):
     """
     Class to handle questions sent by the users.
     """
-    def __init__(self, mongodb, stackbot):
+    def __init__(self, mongodb, stackbot, chat_id=None):
         super().__init__(mongodb, stackbot)
         self.emoji = ':red_question_mark:'
 
-    def submit(self, chat_id):
-        post = super().submit(chat_id)
+    def submit(self):
+        post = super().submit()
         self.send_to_all(post['_id'])
 
     def get_actions_keyboard(self, post_id, chat_id):
