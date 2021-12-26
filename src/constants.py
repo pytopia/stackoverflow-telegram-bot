@@ -51,40 +51,38 @@ post_status = SimpleNamespace(
 )
 
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
-CALLBACK_LENGTH_LIMIT = 64
 
 # Constant Text Messages
-# General Messages
+# General Templates
 HOW_TO_ASK_QUESTION_GUIDE = read_file(DATA_DIR / 'guide.html')
-ASK_QUESTION_START_MESSAGE = (
-    # first_name is filled later
-    ":pencil: <strong>{first_name}</strong>, send your question here.\n"
-    f"When done, click <strong>{keys.send_question}</strong>."
-)
-
 WELCOME_MESSAGE = "Hey <strong>{first_name}</strong>!"
-POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
 CANCEL_MESSAGE = ':cross_mark: Canceled.'
 
-# Question Templates
+# Post Templates
+POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
+EMPTY_POST_MESSAGE = ':cross_mark: {post_type} is empty!'
 POST_PREVIEW_MESSAGE = (
     ':pencil: <strong>{post_type} Preview</strong>\n\n'
     '{post_text}\n'  # Question is filled later
     f'{"_" * 10}\n'
     f'When done, click <strong>send</strong>.'
 )
-
 SEND_POST_TO_ALL_MESSAGE = (
     ':bust_in_silhouette: From: {from_user}\n'
     '{emoji} <strong>New {post_type}</strong>\n\n'
     '{post_text}'
 )
 
-SEND_TO_ALL_SUCCESS_MESSAGE = ':check_mark_button: Question sent successfully to all users.'
-
-EMPTY_POST_MESSAGE = ':cross_mark: {post_type} is empty!'
-
+# Question Templates
 EMPTY_QUESTION_TEXT_MESSAGE = ':warning: Empty Question'
-FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'
+ASK_QUESTION_START_MESSAGE = (
+    # first_name is filled later
+    ":pencil: <strong>{first_name}</strong>, send your question here.\n"
+    f"When done, click <strong>{keys.send_question}</strong>."
+)
 
+# Answer Templates
 ANSWER_QUESTION_START_MESSAGE = ':pencil: <strong>{first_name}</strong>, send your answer here:\n\n'
+
+# File Templates
+FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'
