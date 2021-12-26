@@ -19,3 +19,6 @@ python src/run.py
 ```
 
 **Note:** You need to set up your mongodb database first in `src/db.py`.
+
+## UML Diagram
+<img src="./uml.png" alt="UML Diagram" width="50%">
