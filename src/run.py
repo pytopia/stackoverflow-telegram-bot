@@ -116,7 +116,6 @@ class StackBot:
             """
             Respond to user according to the current user state.
             """
-            self.user.send_message(f'State: <strong>{self.user.state}</strong>')
             if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION]:
                 return
 
