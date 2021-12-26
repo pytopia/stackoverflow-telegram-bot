@@ -10,7 +10,7 @@ from src.utils.keyboard import create_keyboard
 
 class Post:
     """
-    Main class to handle posts and their actions.
+    General class for all types of posts: Question, Answer, Comment, etc.
     """
     def __init__(self, mongodb, stackbot):
         self.db = mongodb

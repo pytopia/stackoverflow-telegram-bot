@@ -6,6 +6,9 @@ from data_models.post import Post
 
 
 class Answer(Post):
+    """
+    Class to handle the answers sent by the users to a question.
+    """
     def __init__(self, mongodb, stackbot):
         super().__init__(mongodb, stackbot)
         self.emoji = ':bright_button:'

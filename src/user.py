@@ -54,6 +54,9 @@ class User:
             collection.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
 
     def exists(self):
+        """
+        Check if user exists in database.
+        """
         if self.db.users.find_one({'chat.id': self.chat_id}) is None:
             return False
 
@@ -61,7 +64,7 @@ class User:
 
     def track(self, **kwargs):
         """
-        Track user actions.
+        Track user actions and any other data.
         """
         self.db.users.update_one(
             {'chat.id': self.chat_id},

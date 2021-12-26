@@ -5,6 +5,9 @@ from data_models.post import Post
 
 
 class Question(Post):
+    """
+    Class to handle questions sent by the users.
+    """
     def __init__(self, mongodb, stackbot):
         super().__init__(mongodb, stackbot)
         self.emoji = ':red_question_mark:'
