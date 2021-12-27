@@ -87,7 +87,9 @@ class StackBot:
 
             self.user.update_state(states.ASK_QUESTION)
             self.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.send_post)
-            self.user.send_message(constants.POST_START_MESSAGE.format(**vars(self.user)))
+            self.user.send_message(constants.POST_START_MESSAGE.format(
+                first_name=self.user.first_name, post_type='question')
+            )
 
         @self.bot.message_handler(text=[keys.cancel])
         def cancel(message):
@@ -193,13 +195,17 @@ class StackBot:
                 reply_markup=self.user.post.get_keyboard(post_id=post_id)
             )
 
-        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.like)
-        def like_callback(call):
-            self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.like))
+        @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.like, inline_keys.follow])
+        def toggle_callback(call):
+            self.bot.answer_callback_query(call.id, text=emoji.emojize(call.data))
 
             # add user chat_id to likes
             post_id = self.get_call_info(call)['post_id']
-            self.user.post.like(post_id)
+
+            if call.data == inline_keys.like:
+                self.user.post.like(post_id)
+            elif call.data == inline_keys.follow:
+                self.user.post.follow(post_id)
 
             # update main menu keyboard
             self.edit_message(

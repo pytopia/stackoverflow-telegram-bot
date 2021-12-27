@@ -47,7 +47,7 @@ states = SimpleNamespace(
 )
 
 post_status = SimpleNamespace(
-    PREP=':white_circle: In Preparation',
+    PREP=':white_circle: Typing...',
     DRAFT=':yello_circle: Draft',
     CLOSED=':red_circle: Closed',
     OPEN=':green_circle: Open',
@@ -73,7 +73,8 @@ POST_PREVIEW_MESSAGE = (
 SEND_POST_TO_ALL_MESSAGE = (
     '{emoji} <strong>New {post_type}</strong>\n'
     ':bust_in_silhouette: From: {from_user}\n'
-    '{post_status}\n\n'
+    '{post_status}'
+    '\n\n'
     '{post_text}'
 )
 POST_START_MESSAGE = (

@@ -1,5 +1,5 @@
 from bson.objectid import ObjectId
-from src.constants import inline_keys
+from src.constants import inline_keys, post_status
 from src.utils.keyboard import create_keyboard
 
 from data_models.post import Post
@@ -36,7 +36,7 @@ class Answer(Post):
         keys = [inline_keys.back, inline_keys.follow, inline_keys.comment]
         if chat_id == answer_owner_chat_id:
             current_status = answer['status']
-            if current_status == 'open':
+            if current_status == post_status.OPEN:
                 keys.append(inline_keys.close)
             else:
                 keys.append(inline_keys.open)

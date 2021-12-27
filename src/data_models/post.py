@@ -73,7 +73,7 @@ class Post:
         :param chat_id: Unique id of the user
         :param preview: If True, send post in preview mode. Default is False.
         """
-        post_keyboard = self.get_keyboard(post_id)
+        post_keyboard = self.get_keyboard(post_id, preview=preview)
         post_text = self.get_text(post_id)
 
         # Preview to user mode or send to other users
@@ -131,7 +131,7 @@ class Post:
 
         return post_text
 
-    def get_keyboard(self, post_id):
+    def get_keyboard(self, post_id, preview=False):
         """
         Get post keyboard that has attached files + other actions on post such as like, actions menu, etc.
         """
@@ -151,26 +151,34 @@ class Post:
         num_likes = len(post.get('likes', []))
         new_like_key = f'{inline_keys.like} ({num_likes})' if num_likes else inline_keys.unlike
 
-        keys.extend([inline_keys.actions, new_like_key])
-        callback_data.extend([inline_keys.actions, inline_keys.like])
+        if not preview:
+            keys.extend([inline_keys.actions, new_like_key])
+            callback_data.extend([inline_keys.actions, inline_keys.like])
 
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
+
+    def toggle(self, post_id, key):
+        exists_flag = self.collection.find_one({'_id': ObjectId(post_id), key: self.chat_id})
+
+        if exists_flag:
+            self.collection.update_one({'_id': ObjectId(post_id)}, {'$pull': {key: self.chat_id}})
+        else:
+            self.collection.update_one(
+                {'_id': ObjectId(post_id)}, {'$addToSet': {key: self.chat_id}}
+            )
+
+    def follow(self, post_id: str):
+        """
+        Follow/Unfollow post with post_id.
+        """
+        self.toggle(post_id, 'followers')
 
     def like(self, post_id: str):
         """
         Like post with post_id or unlike post if already liked.
         """
-        liked_before = self.collection.find_one({'_id': ObjectId(post_id), 'likes': self.chat_id})
-
-        if liked_before:
-            # unlike if already liked it
-            self.collection.update_one({'_id': ObjectId(post_id)}, {'$pull': {'likes': self.chat_id}})
-        else:
-            # like
-            self.collection.update_one(
-                {'_id': ObjectId(post_id)}, {'$addToSet': {'likes': self.chat_id}}
-            )
+        self.toggle(post_id, 'likes')
 
     def open_close(self, post_id: str):
         """

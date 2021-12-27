@@ -19,6 +19,11 @@ class User:
         self.first_name = first_name
         self.post_type = post_type
 
+        # post handlers
+        self.question = Question(mongodb, stackbot, chat_id=chat_id)
+        self.answer = Answer(mongodb, stackbot, chat_id=chat_id)
+        self.comment = Comment(mongodb, stackbot, chat_id=chat_id)
+
     @property
     def user(self):
         return self.db.users.find_one({'chat.id': self.chat_id})
@@ -37,15 +42,14 @@ class User:
         Return the right post handler based on user state or post type.
         """
         if (self.post_type == 'question') or (self.state == states.ASK_QUESTION):
-            post_handler = Question(mongodb=self.db, stackbot=self.stackbot)
+            post_handler = self.question
         elif (self.post_type == 'answer') or (self.state == states.ANSWER_QUESTION):
-            post_handler = Answer(mongodb=self.db, stackbot=self.stackbot)
+            post_handler = self.answer
         elif (self.post_type == 'comment') or (self.state == states.COMMENT_POST):
-            post_handler = Comment(mongodb=self.db, stackbot=self.stackbot)
+            post_handler = self.comment
         else:
-            post_handler = Post(mongodb=self.db, stackbot=self)
+            post_handler = Post(self.mongodb, self.stackbot, chat_id=self.chat_id)
 
-        post_handler.chat_id = self.chat_id
         return post_handler
 
     def send_message(self, text, reply_markup=None, emojize=True):

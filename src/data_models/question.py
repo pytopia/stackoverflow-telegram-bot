@@ -27,7 +27,6 @@ class Question(Post):
         keys = [inline_keys.back, inline_keys.answer, inline_keys.follow, inline_keys.comment]
         if chat_id == question_owner_chat_id:
             current_status = question['status']
-
             if current_status == post_status.OPEN:
                 keys.append(inline_keys.close)
             else:
