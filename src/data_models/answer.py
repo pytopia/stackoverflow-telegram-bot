@@ -10,7 +10,7 @@ class Answer(Post):
     Class to handle the answers sent by the users to a question.
     """
     def __init__(self, mongodb, stackbot, chat_id=None):
-        super().__init__(mongodb, stackbot)
+        super().__init__(mongodb, stackbot, chat_id=chat_id)
         self.emoji = ':bright_button:'
 
     def submit(self):

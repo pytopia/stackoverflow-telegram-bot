@@ -119,14 +119,16 @@ class Post:
 
         # prettify message with other information such as sender, post status, etc.
         if prettify:
+            post_type = self.post_type.title()
             if preview:
                 post_text = constants.POST_PREVIEW_MESSAGE.format(
-                    post_text=post_text, post_type=self.post_type.title()
+                    post_text=post_text, post_type=post_type
                 )
             else:
+                from_user = post['chat']['id']
                 post_text = constants.SEND_POST_TO_ALL_MESSAGE.format(
-                    from_user=self.chat_id, post_text=post_text, post_status=post['status'],
-                    post_type=self.post_type.title(), emoji=self.emoji,
+                    from_user=from_user, post_text=post_text, post_status=post['status'],
+                    post_type=post_type, emoji=self.emoji,
                 )
 
         return post_text

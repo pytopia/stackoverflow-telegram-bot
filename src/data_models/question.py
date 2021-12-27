@@ -9,7 +9,7 @@ class Question(Post):
     Class to handle questions sent by the users.
     """
     def __init__(self, mongodb, stackbot, chat_id=None):
-        super().__init__(mongodb, stackbot)
+        super().__init__(mongodb, stackbot, chat_id=chat_id)
         self.emoji = ':red_question_mark:'
 
     def submit(self):
