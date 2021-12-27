@@ -1,3 +1,5 @@
+import re
+
 import emoji
 from loguru import logger
 from telebot import custom_filters
@@ -8,14 +10,15 @@ from src.constants import inline_keys, keyboards, keys, states
 from src.db import db
 from src.filters import IsAdmin
 from src.user import User
-import re
-
 from utils.keyboard import create_keyboard
 
 
 class StackBot:
     """
-    Template for telegram bot.
+    Stackoverflow Telegram Bot.
+
+    Using the Telegram Bot API, users can interact with each other to ask questions,
+    comment, and answer.
     """
     def __init__(self, telebot, mongodb):
         self.bot = telebot

@@ -1,6 +1,5 @@
 from bson.objectid import ObjectId
 from src.data_models.post import Post
-from src.constants import inline_keys
 from src.utils.keyboard import create_keyboard
 
 

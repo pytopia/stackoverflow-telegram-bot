@@ -1,5 +1,5 @@
 from bson.objectid import ObjectId
-from src.constants import inline_keys, post_status
+from src.constants import inline_keys
 from src.utils.keyboard import create_keyboard
 
 from data_models.post import Post

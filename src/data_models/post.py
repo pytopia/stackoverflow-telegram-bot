@@ -3,7 +3,7 @@ from itertools import repeat
 
 import constants
 from bson.objectid import ObjectId
-from src.constants import inline_keys, post_status, SUPPORTED_CONTENT_TYPES
+from src.constants import SUPPORTED_CONTENT_TYPES, inline_keys, post_status
 from src.utils.common import human_readable_size
 from src.utils.keyboard import create_keyboard
 

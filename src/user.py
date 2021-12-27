@@ -3,9 +3,9 @@ from loguru import logger
 from src import constants
 from src.constants import states
 from src.data_models.answer import Answer
+from src.data_models.comment import Comment
 from src.data_models.post import Post
 from src.data_models.question import Question
-from src.data_models.comment import Comment
 
 
 class User:
