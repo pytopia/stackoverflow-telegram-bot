@@ -27,20 +27,11 @@ class Answer(Post):
         return post
 
     def get_actions_keyboard(self, post_id, chat_id):
-        answer = self.collection.find_one({'_id': post_id})
-        answer_owner_chat_id = answer['chat']['id']
+        keys, _ = super().get_actions_keys_and_owner(post_id, chat_id)
 
+        answer = self.collection.find_one({'_id': post_id})
         question = self.db.question.find_one({'_id': ObjectId(answer['question_id'])})
         question_owner_chat_id = question['chat']['id']
-
-        keys = [inline_keys.back, inline_keys.follow, inline_keys.comment]
-        if chat_id == answer_owner_chat_id:
-            current_status = answer['status']
-            if current_status == post_status.OPEN:
-                keys.append(inline_keys.close)
-            else:
-                keys.append(inline_keys.open)
-            keys.append(inline_keys.edit)
 
         if chat_id == question_owner_chat_id:
             keys.append(inline_keys.accept)

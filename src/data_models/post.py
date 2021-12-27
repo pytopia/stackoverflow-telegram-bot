@@ -182,6 +182,25 @@ class Post:
         """
         self.toggle(post_id, 'likes')
 
+    def get_actions_keys_and_owner(self, post_id, chat_id):
+        post = self.collection.find_one({'_id': post_id})
+        post_owner_chat_id = post['chat']['id']
+
+        keys = [inline_keys.back, inline_keys.comment]
+        if chat_id != post_owner_chat_id:
+            keys.append(inline_keys.follow)
+
+        if chat_id == post_owner_chat_id:
+            current_status = post['status']
+            if current_status == post_status.OPEN:
+                keys.append(inline_keys.close)
+            elif current_status:
+                keys.append(inline_keys.open)
+
+            keys.append(inline_keys.edit)
+
+        return keys, post_owner_chat_id
+
     def open_close(self, post_id: str):
         """
         Close/Open post with post_id.
