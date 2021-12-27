@@ -12,12 +12,18 @@ class User:
     """
     Class to handle telegram bot users.
     """
-    def __init__(self, chat_id, mongodb, stackbot, first_name=None, post_type=None):
+    def __init__(self, chat_id, mongodb, stackbot, first_name=None, post_id=None):
         self.chat_id = chat_id
         self.db = mongodb
         self.stackbot = stackbot
         self.first_name = first_name
-        self.post_type = post_type
+
+        # Get the post user is working on
+        # When user clicks on inline buttons, we have the post_id in our database.
+        self.post_id = post_id
+        self.post_type = None
+        if post_id is not None:
+            self.post_type = self.db.post.find_one({'_id': self.post_id})['post_type']
 
         # post handlers
         self.question = Question(mongodb, stackbot, chat_id=chat_id)

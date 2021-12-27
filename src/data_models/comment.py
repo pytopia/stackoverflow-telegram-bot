@@ -15,7 +15,7 @@ class Comment(Post):
         post_owner_chat_id = post['chat']['id']
 
         # Send to the user who sent the original post
-        related_post = self.db.post.find_one({'_id': ObjectId(post['sent_for_post_id'])})
+        related_post = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
         related_post_owner_chat_id = related_post['chat']['id']
 
         # Send to Followers

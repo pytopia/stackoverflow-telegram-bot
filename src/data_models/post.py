@@ -26,7 +26,7 @@ class Post:
         """
         return self.collection.find_one({'_id': ObjectId(post_id)}).get('followers', [])
 
-    def update(self, message, sent_for_post_id=None):
+    def update(self, message, replied_to_post_id=None):
         """
         In ask_post state, the user can send a post in multiple messages.
         In each message, we update the current post with the message recieved.
@@ -47,7 +47,7 @@ class Post:
         # Save to database
         # Note: We can store metadata in the post such as data or
         # the question_id an answer belongs to
-        set_data = {'date': message.date, 'post_type': self.post_type, 'sent_for_post_id': sent_for_post_id}
+        set_data = {'date': message.date, 'post_type': self.post_type, 'replied_to_post_id': replied_to_post_id}
 
         output = self.collection.update_one({'chat.id': message.chat.id, 'status': post_status.PREP}, {
             '$push': {'content': content},
@@ -91,7 +91,6 @@ class Post:
             'post_id': post_id,
             'chat_id': chat_id,
             'message_id': sent_message.message_id,
-            'post_type': self.post_type,
             'preview': preview,
         })
 
