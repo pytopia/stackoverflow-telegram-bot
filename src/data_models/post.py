@@ -16,7 +16,7 @@ class Post:
         self.db = mongodb
         self.stackbot = stackbot
         self.post_type = self.__class__.__name__.lower()
-        self.collection = getattr(self.db, self.post_type)
+        self.collection = self.db.post  # getattr(self.db, self.post_type)
         self.chat_id = chat_id
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
 
@@ -47,7 +47,7 @@ class Post:
         # Save to database
         # Note: We can store metadata in the post such as data or
         # the question_id an answer belongs to
-        set_data = {'date': message.date}
+        set_data = {'date': message.date, 'post_type': self.post_type}
         set_data.update(post_metadata)
 
         output = self.collection.update_one({'chat.id': message.chat.id, 'status': post_status.PREP}, {
@@ -162,8 +162,10 @@ class Post:
                 callback_data.append(content['file_unique_id'])
 
         # add actions, like, etc. keys
+        liked_by_user = self.collection.find_one({'_id': ObjectId(post_id), 'likes': self.chat_id})
+        like_key = inline_keys.like if liked_by_user else inline_keys.unlike
         num_likes = len(post.get('likes', []))
-        new_like_key = f'{inline_keys.like} ({num_likes})' if num_likes else inline_keys.unlike
+        new_like_key = f'{like_key} ({num_likes})' if num_likes else f'{like_key}'
 
         if not preview:
             keys.extend([inline_keys.actions, new_like_key])

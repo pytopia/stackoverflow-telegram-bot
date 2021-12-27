@@ -49,8 +49,8 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(
-                chat_id=message.chat.id, mongodb=self.db,
-                stackbot=self, first_name=message.chat.first_name,
+                chat_id=message.chat.id, mongodb=self.db, stackbot=self,
+                first_name=message.chat.first_name, username=message.chat.username,
             )
             if not self.user.exists():
                 self.user.reset()
@@ -69,8 +69,8 @@ class StackBot:
             post_type = self.get_call_info(call)['post_type']
 
             self.user = User(
-                chat_id=call.message.chat.id, mongodb=self.db,
-                stackbot=self, first_name=call.message.chat.first_name,
+                chat_id=call.message.chat.id, mongodb=self.db, stackbot=self,
+                first_name=call.message.chat.first_name, username=call.message.chat.username,
                 post_type=post_type
             )
 
@@ -211,13 +211,15 @@ class StackBot:
 
             if call.data == inline_keys.like:
                 self.user.post.like(post_id)
+                keyboard = self.user.post.get_keyboard(post_id=post_id)
             elif call.data in [inline_keys.follow, inline_keys.unfollow]:
                 self.user.post.follow(post_id)
+                keyboard = self.user.post.get_actions_keyboard(post_id, call.message.chat.id)
 
             # update main menu keyboard
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
-                reply_markup=self.user.post.get_keyboard(post_id=post_id)
+                reply_markup=keyboard
             )
 
         @bot.callback_query_handler(
@@ -234,7 +236,7 @@ class StackBot:
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
                 text=self.user.post.get_text(post_id=post_id),
-                reply_markup=self.user.post.get_keyboard(post_id=post_id)
+                reply_markup=self.user.post.get_actions_keyboard(post_id=post_id, chat_id=call.message.chat.id)
             )
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))

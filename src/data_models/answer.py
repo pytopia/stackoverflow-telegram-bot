@@ -18,20 +18,20 @@ class Answer(Post):
         post_owner_chat_id = post['chat']['id']
 
         # Send to the user who asked question
-        question = self.db.question.find_one({'_id': ObjectId(post['question_id'])})
+        question = self.db.post.find_one({'_id': ObjectId(post['question_id'])})
         question_owner_chat_id = question['chat']['id']
 
         # Send to Followers
         followers = self.get_followers(post_id)
 
-        self.send_to_many(post_id, [post_owner_chat_id, question_owner_chat_id] + followers)
+        self.send_to_many(post_id, list({post_owner_chat_id, question_owner_chat_id}) + followers)
         return post
 
     def get_actions_keyboard(self, post_id, chat_id):
         keys, _ = super().get_actions_keys_and_owner(post_id, chat_id)
 
         answer = self.collection.find_one({'_id': post_id})
-        question = self.db.question.find_one({'_id': ObjectId(answer['question_id'])})
+        question = self.db.post.find_one({'_id': ObjectId(answer['question_id'])})
         question_owner_chat_id = question['chat']['id']
 
         if chat_id == question_owner_chat_id:

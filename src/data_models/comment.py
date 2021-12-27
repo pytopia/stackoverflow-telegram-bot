@@ -15,13 +15,13 @@ class Comment(Post):
         post_owner_chat_id = post['chat']['id']
 
         # Send to the user who sent the original post
-        related_post = self.db.question.find_one({'_id': ObjectId(post['post_id'])})
+        related_post = self.db.post.find_one({'_id': ObjectId(post['post_id'])})
         related_post_owner_chat_id = related_post['chat']['id']
 
         # Send to Followers
         followers = self.get_followers(post_id)
 
-        self.send_to_many(post_id, [post_owner_chat_id, related_post_owner_chat_id] + followers)
+        self.send_to_many(post_id, list({post_owner_chat_id, related_post_owner_chat_id}) + followers)
         return post
 
     def get_actions_keyboard(self, post_id, chat_id):

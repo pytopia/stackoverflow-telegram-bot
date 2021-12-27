@@ -12,11 +12,12 @@ class User:
     """
     Class to handle telegram bot users.
     """
-    def __init__(self, chat_id, mongodb, stackbot, first_name=None, post_type=None):
+    def __init__(self, chat_id, mongodb, stackbot, first_name=None, username=None, post_type=None):
         self.chat_id = chat_id
         self.db = mongodb
         self.stackbot = stackbot
         self.first_name = first_name
+        self.username = f'@{username}' if username else None
         self.post_type = post_type
 
         # post handlers
@@ -74,8 +75,12 @@ class User:
             {'$set': {'state': states.MAIN}}
         )
 
-        for collection in [self.db.question, self.db.answer, self.db.comment]:
-            collection.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
+        for post_type in ['question', 'answer', 'comment']:
+            self.db.post.delete_one({
+                'chat.id': self.chat_id,
+                'status': constants.post_status.PREP,
+                'post_type': post_type
+            })
 
     def exists(self):
         """
