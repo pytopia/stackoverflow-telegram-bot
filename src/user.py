@@ -99,15 +99,10 @@ class User:
         logger.info('Reset user data.')
         self.db.users.update_one(
             {'chat.id': self.chat_id},
-            {'$set': {'state': states.MAIN}}
+            {'$set': {'state': states.MAIN}, '$unset': {'tracker': 1}}
         )
 
-        for post_type in ['question', 'answer', 'comment']:
-            self.db.post.delete_one({
-                'chat.id': self.chat_id,
-                'status': constants.post_status.PREP,
-                'post_type': post_type
-            })
+        self.db.post.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
 
     def exists(self):
         """

@@ -18,7 +18,7 @@ class Answer(Post):
         post_owner_chat_id = post['chat']['id']
 
         # Send to the user who asked question
-        question = self.db.post.find_one({'_id': ObjectId(post['question_id'])})
+        question = self.db.post.find_one({'_id': ObjectId(post['sent_for_post_id'])})
         question_owner_chat_id = question['chat']['id']
 
         # Send to Followers
@@ -31,7 +31,7 @@ class Answer(Post):
         keys, _ = super().get_actions_keys_and_owner(post_id, chat_id)
 
         answer = self.collection.find_one({'_id': post_id})
-        question = self.db.post.find_one({'_id': ObjectId(answer['question_id'])})
+        question = self.db.post.find_one({'_id': ObjectId(answer['sent_for_post_id'])})
         question_owner_chat_id = question['chat']['id']
 
         if chat_id == question_owner_chat_id:

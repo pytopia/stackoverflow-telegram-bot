@@ -154,13 +154,7 @@ class StackBot:
                 )
                 return
 
-            post_metadata = dict()
-            if self.user.state == states.ANSWER_QUESTION:
-                post_metadata.update({'question_id': self.user.tracker['post_id']})
-            if self.user.state == states.COMMENT_POST:
-                post_metadata.update({'post_id': self.user.tracker['post_id']})
-
-            post_id = self.user.post.update(message, post_metadata)
+            post_id = self.user.post.update(message, sent_for_post_id=self.user.tracker.get('sent_for_post_id'))
             new_preview_message = self.user.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
             self.user.clean_preview(new_preview_message)
 
@@ -193,7 +187,7 @@ class StackBot:
                 self.user.post_type = 'comment'
 
             post_id = self.get_call_info(call)['post_id']
-            self.user.track(post_id=post_id)
+            self.user.track(sent_for_post_id=post_id)
             self.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
             self.user.send_message(
                 constants.POST_START_MESSAGE.format(**vars(self.user)),
