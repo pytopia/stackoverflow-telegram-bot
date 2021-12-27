@@ -10,17 +10,18 @@ class Comment(Post):
         self.emoji = ':speech_balloon:'
         self.supported_content_types = ['text']
 
-    def submit(self):
-        post = super().submit()
-        if not post:
-            return
+    def send(self, post_id):
+        post = self.collection.find_one({'_id': post_id})
+        post_owner_chat_id = post['chat']['id']
 
-        # Send to the user who asked question
-        comment_owner = self.db.users.find_one({'chat.id': post['chat']['id']})
+        # Send to the user who sent the original post
+        related_post = self.db.question.find_one({'_id': ObjectId(post['post_id'])})
+        related_post_owner_chat_id = related_post['chat']['id']
 
-        # TODO: Send to the user who follows the question
-        # question_followers_chat_id = []
-        self.send_to_one(post['_id'], comment_owner['chat']['id'])
+        # Send to Followers
+        followers = self.get_followers(post_id)
+
+        self.send_to_many(post_id, [post_owner_chat_id, related_post_owner_chat_id] + followers)
         return post
 
     def get_actions_keyboard(self, post_id, chat_id):

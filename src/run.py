@@ -74,8 +74,9 @@ class StackBot:
                 post_type=post_type
             )
 
-            # Demojize callback data
+            # Demojize callback data and text
             call.data = emoji.demojize(call.data)
+            call.message.text = emoji.demojize(call.message.text)
 
         @self.bot.message_handler(text=[keys.ask_question])
         def ask_question(message):
@@ -105,11 +106,12 @@ class StackBot:
             """
             User sends a post.
             """
-            submitted_post = self.user.post.submit()
-            if not submitted_post:
+            post_id = self.user.post.submit()
+            if not post_id:
                 self.user.send_message(constants.EMPTY_POST_MESSAGE)
                 return
 
+            self.user.post.send(post_id)
             self.user.send_message(
                 text=constants.POST_OPEN_SUCCESS_MESSAGE.format(
                     post_type=self.user.post.post_type.title(),
@@ -156,11 +158,14 @@ class StackBot:
             """
             self.bot.answer_callback_query(call.id, text=inline_keys.actions)
 
-            # actions keyboard'
+            # actions keyboard (also update text)
             post_id = self.get_call_info(call)['post_id']
             reply_markup = self.user.post.get_actions_keyboard(post_id, call.message.chat.id)
 
-            self.edit_message(call.message.chat.id, call.message.message_id, reply_markup=reply_markup)
+            # TODO: If in future, we update the posts in a queue structure, we can remove this
+            text = self.user.post.get_text(post_id)
+
+            self.edit_message(call.message.chat.id, call.message.message_id, text=text, reply_markup=reply_markup)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.answer, inline_keys.comment])
         def post_callback(call):
@@ -195,7 +200,9 @@ class StackBot:
                 reply_markup=self.user.post.get_keyboard(post_id=post_id)
             )
 
-        @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.like, inline_keys.follow])
+        @bot.callback_query_handler(
+            func=lambda call: call.data in [inline_keys.like, inline_keys.follow, inline_keys.unfollow]
+        )
         def toggle_callback(call):
             self.bot.answer_callback_query(call.id, text=emoji.emojize(call.data))
 
@@ -204,7 +211,7 @@ class StackBot:
 
             if call.data == inline_keys.like:
                 self.user.post.like(post_id)
-            elif call.data == inline_keys.follow:
+            elif call.data in [inline_keys.follow, inline_keys.unfollow]:
                 self.user.post.follow(post_id)
 
             # update main menu keyboard
@@ -269,7 +276,7 @@ class StackBot:
             if text:
                 self.bot.edit_message_text(text=text, chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
         except Exception as e:
-            logger.warning(e)
+            logger.debug(e)
 
     def send_file(self, chat_id, file_unique_id, message_id=None):
         """
@@ -300,7 +307,7 @@ class StackBot:
         try:
             self.bot.delete_message(chat_id, message_id)
         except Exception as e:
-            logger.warning('Error deleting message: Message not found.')
+            logger.debug('Error deleting message: Message not found.')
 
     def get_call_info(self, call):
         return self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})

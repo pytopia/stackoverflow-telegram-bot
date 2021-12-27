@@ -20,6 +20,12 @@ class Post:
         self.chat_id = chat_id
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
 
+    def get_followers(self, post_id: str):
+        """
+        Get all followers of the current post.
+        """
+        return self.collection.find_one({'_id': ObjectId(post_id)}).get('followers', [])
+
     def update(self, message, post_metadata):
         """
         In ask_post state, the user can send a post in multiple messages.
@@ -63,7 +69,7 @@ class Post:
             return
 
         self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
-        return post
+        return post['_id']
 
     def send_to_one(self, post_id: str, chat_id: str, preview: bool = False):
         """
@@ -92,13 +98,19 @@ class Post:
 
         return sent_message
 
+    def send_to_many(self, post_id: str, chat_ids: list):
+        """
+        Send post with post_id to all users.
+        """
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.map(self.send_to_one, repeat(post_id), chat_ids)
+
     def send_to_all(self, post_id: str):
         """
         Send post with post_id to all users.
         """
         chat_ids = map(lambda user: user['chat']['id'], self.db.users.find())
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.map(self.send_to_one, repeat(post_id), chat_ids)
+        self.send_to_many(post_id, chat_ids)
 
     def get_text(self, post_id: str, preview: bool = False, prettify: bool = True):
         """
@@ -188,7 +200,10 @@ class Post:
 
         keys = [inline_keys.back, inline_keys.comment]
         if chat_id != post_owner_chat_id:
-            keys.append(inline_keys.follow)
+            if chat_id in post.get('followers', []):
+                keys.append(inline_keys.unfollow)
+            else:
+                keys.append(inline_keys.follow)
 
         if chat_id == post_owner_chat_id:
             current_status = post['status']

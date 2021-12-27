@@ -12,13 +12,8 @@ class Question(Post):
         super().__init__(mongodb, stackbot, chat_id=chat_id)
         self.emoji = ':red_question_mark:'
 
-    def submit(self):
-        post = super().submit()
-        if not post:
-            return
-
-        self.send_to_all(post['_id'])
-        return post
+    def send(self, post_id):
+        self.send_to_all(post_id)
 
     def get_actions_keyboard(self, post_id, chat_id):
         keys, owner = super().get_actions_keys_and_owner(post_id, chat_id)
