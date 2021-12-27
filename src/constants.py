@@ -32,6 +32,14 @@ inline_keys = SimpleNamespace(
     open=':green_circle: Open',
     close=':red_circle: Close',
     edit=':pencil: Edit',
+    change_identity=':smiling_face_with_sunglasses: Change Identity',
+    ananymous=':smiling_face_with_sunglasses: Ananymous',
+    first_name=':bust_in_silhouette: First Name',
+    username=':bust_in_silhouette: Username',
+    alias=':smiling_face_with_sunglasses: Alias',
+    mute=':muted_speaker: Mute Bot',
+    unmute=':speaker_high_volume: Unmute Bot',
+
 )
 
 keyboards = SimpleNamespace(
@@ -53,6 +61,13 @@ post_status = SimpleNamespace(
     OPEN=':green_circle: Open',
 )
 
+user_identity = SimpleNamespace(
+    ANANYMOUS=':smiling_face_with_sunglasses: Ananymous',
+    FIRST_NAME=':bust_in_silhouette: First Name',
+    USERNAME=':bust_in_silhouette: Username',
+    ALIAS=':smiling_face_with_sunglasses: Alias',
+)
+
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
 
 # Constant Text Messages
@@ -60,6 +75,7 @@ SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice
 HOW_TO_ASK_QUESTION_GUIDE = read_file(DATA_DIR / 'guide.html')
 WELCOME_MESSAGE = "Hey <strong>{first_name}</strong>!"
 CANCEL_MESSAGE = ':cross_mark: Canceled.'
+IDENTITY_TYPE_NOT_SET_WARNING = ':warning: <strong>{identity_type}</strong> is not set. Please set it in your settings or Telegram.'
 
 # Post Templates
 POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
@@ -90,4 +106,15 @@ FILE_NOT_FOUND_ERROR_MESSAGE = ':cross_mark: File not found!'
 UNSUPPORTED_CONTENT_TYPE_MESSAGE = (
     ':cross_mark: Unsupported content type.\n\n'
     ':safety_pin: Allowed types: {supported_contents}'
+)
+
+# Settings Templates
+SETTINGS_START_MESSAGE = (
+    ':gear: <strong>Settings</strong>\n'
+    ':bust_in_silhouette: {first_name} ({username})\n\n'
+
+    ':smiling_face_with_sunglasses: Identity: <strong>{identity}</strong>\n\n'
+
+    # ':desktop_computer: GitHub: {github}\n'
+    # ':pencil: Bio: {bio}\n'
 )

@@ -137,7 +137,7 @@ class Post:
                     post_text=post_text, post_type=post_type
                 )
             else:
-                from_user = post['chat']['id']
+                from_user = self.get_user_identity(chat_id=post['chat']['id'])
                 post_text = constants.SEND_POST_TO_ALL_MESSAGE.format(
                     from_user=from_user, post_text=post_text, post_status=post['status'],
                     post_type=post_type, emoji=self.emoji,
@@ -231,3 +231,11 @@ class Post:
             {'_id': ObjectId(post_id)},
             {'$set': {'status': new_status}}
         )
+
+    def get_user_identity(self, chat_id):
+        """
+        Return user identity.
+        """
+        from src.user import User
+        user = User(chat_id=chat_id, mongodb=self.db, stackbot=self.stackbot)
+        return user.identity

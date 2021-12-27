@@ -12,12 +12,11 @@ class User:
     """
     Class to handle telegram bot users.
     """
-    def __init__(self, chat_id, mongodb, stackbot, first_name=None, username=None, post_type=None):
+    def __init__(self, chat_id, mongodb, stackbot, first_name=None, post_type=None):
         self.chat_id = chat_id
         self.db = mongodb
         self.stackbot = stackbot
         self.first_name = first_name
-        self.username = f'@{username}' if username else None
         self.post_type = post_type
 
         # post handlers
@@ -36,6 +35,34 @@ class User:
     @property
     def tracker(self):
         return self.user.get('tracker', {})
+
+    @property
+    def settings(self):
+        return self.user.get('settings')
+
+    @property
+    def username(self):
+        username = self.user['chat'].get('username')
+        return f'@{username}' if username else None
+
+    @property
+    def identity(self):
+        user = self.user
+        username = self.username
+
+        identity_type = user['settings']['identity_type']
+
+        if identity_type == 'ananymous':
+            return self.chat_id
+
+        if (identity_type == 'username') and (username is not None):
+            return username
+
+        if not user['chat'].get(identity_type):
+            self.send_message(constants.IDENTITY_TYPE_NOT_SET_WARNING.format(identity_type=identity_type))
+            return self.chat_id
+
+        return user['chat'][identity_type]
 
     @property
     def post(self):
@@ -126,3 +153,13 @@ class User:
 
         if new_preview_message:
             self.track(preview_message_id=new_preview_message.message_id)
+
+    def update_settings(self, **kwargs):
+        """
+        Update user settings.
+        """
+        settings = {f'settings.{key}': value for key, value in kwargs.items()}
+        self.db.users.update_one(
+            {'chat.id': self.chat_id},
+            {'$set': settings}
+        )

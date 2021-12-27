@@ -10,6 +10,8 @@ from src.filters import IsAdmin
 from src.user import User
 import re
 
+from utils.keyboard import create_keyboard
+
 
 class StackBot:
     """
@@ -40,6 +42,7 @@ class StackBot:
             """
             self.user.send_message(constants.WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
             self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
+            self.user.update_settings(identity_type='ananymous', muted_bot=False)
             self.user.reset()
 
         @self.bot.middleware_handler(update_types=['message'])
@@ -50,7 +53,7 @@ class StackBot:
             # Getting updated user before message reaches any other handler
             self.user = User(
                 chat_id=message.chat.id, mongodb=self.db, stackbot=self,
-                first_name=message.chat.first_name, username=message.chat.username,
+                first_name=message.chat.first_name,
             )
             if not self.user.exists():
                 self.user.reset()
@@ -66,11 +69,12 @@ class StackBot:
             Initialize user to use in other handlers.
             """
             # Getting updated user before message reaches any other handler
-            post_type = self.get_call_info(call)['post_type']
+            call_info = self.get_call_info(call)
+            post_type = call_info.get('post_type')
 
             self.user = User(
                 chat_id=call.message.chat.id, mongodb=self.db, stackbot=self,
-                first_name=call.message.chat.first_name, username=call.message.chat.username,
+                first_name=call.message.chat.first_name,
                 post_type=post_type
             )
 
@@ -122,6 +126,16 @@ class StackBot:
             # Reset user state and data
             self.user.reset()
             self.user.clean_preview()
+
+        @self.bot.message_handler(text=[keys.settings])
+        def settings(message):
+            """
+            User cancels sending a post.
+            """
+            if self.user.state != states.MAIN:
+                return
+
+            self.user.send_message(text=self.get_settings_text(), reply_markup=self.get_settings_keyboard())
 
         # Handles all other messages with the supported content_types
         @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
@@ -194,11 +208,19 @@ class StackBot:
             self.bot.answer_callback_query(call.id, text=inline_keys.back)
 
             # main menu keyboard
-            post_id = self.get_call_info(call)['post_id']
-            self.edit_message(
-                call.message.chat.id, call.message.message_id,
-                reply_markup=self.user.post.get_keyboard(post_id=post_id)
-            )
+            post_id = self.get_call_info(call).get('post_id')
+            if post_id:
+                # back is called on a post (question, answer or comment)
+                self.edit_message(
+                    call.message.chat.id, call.message.message_id,
+                    reply_markup=self.user.post.get_keyboard(post_id=post_id)
+                )
+            else:
+                # back is called in settings
+                self.edit_message(
+                    call.message.chat.id, call.message.message_id,
+                    reply_markup=self.get_settings_keyboard()
+                )
 
         @bot.callback_query_handler(
             func=lambda call: call.data in [inline_keys.like, inline_keys.follow, inline_keys.unfollow]
@@ -226,7 +248,7 @@ class StackBot:
             func=lambda call: call.data in [inline_keys.open, inline_keys.close]
         )
         def open_close_post_callback(call):
-            self.bot.answer_callback_query(call.id, text=emoji.emojize(inline_keys.open))
+            self.bot.answer_callback_query(call.id, text=call.data)
 
             # add user chat_id to likes
             post_id = self.get_call_info(call)['post_id']
@@ -239,6 +261,34 @@ class StackBot:
                 reply_markup=self.user.post.get_actions_keyboard(post_id=post_id, chat_id=call.message.chat.id)
             )
 
+        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.change_identity)
+        def change_identity_callback(call):
+            """
+            Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
+            """
+            self.answer_callback_query(call.id, text=call.data)
+
+            keyboard = create_keyboard(
+                inline_keys.ananymous, inline_keys.first_name, inline_keys.username,
+                callback_data=['ananymous', 'first_name', 'username'],
+                is_inline=True
+            )
+            self.edit_message(call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+
+        @bot.callback_query_handler(
+            func=lambda call: call.data in ['ananymous', 'first_name', 'username']
+        )
+        def set_identity_callback(call):
+            """
+            Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
+            """
+            self.answer_callback_query(call.id, text=call.data)
+            self.user.update_settings(identity_type=call.data)
+            self.edit_message(
+                call.message.chat.id, call.message.message_id,
+                text=self.get_settings_text(), reply_markup=self.get_settings_keyboard()
+            )
+
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
             """
@@ -248,7 +298,7 @@ class StackBot:
             self.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
         @bot.callback_query_handler(func=lambda call: True)
-        def not_implemented(call):
+        def not_implemented_callback(call):
             """
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
@@ -273,10 +323,12 @@ class StackBot:
             text = emoji.emojize(text)
 
         try:
-            if reply_markup:
+            if text and reply_markup:
+                self.bot.edit_message_text(text=text, reply_markup=reply_markup, chat_id=chat_id, message_id=message_id)
+            elif reply_markup:
                 self.bot.edit_message_reply_markup(chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
-            if text:
-                self.bot.edit_message_text(text=text, chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
+            elif text:
+                self.bot.edit_message_text(text=text, chat_id=chat_id, message_id=message_id)
         except Exception as e:
             logger.debug(e)
 
@@ -312,11 +364,30 @@ class StackBot:
             logger.debug('Error deleting message: Message not found.')
 
     def get_call_info(self, call):
-        return self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})
+        callback_data = self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})
+        return callback_data or {}
 
     def answer_callback_query(self, call_id, text):
         text = emoji.emojize(text)
         self.bot.answer_callback_query(call_id, text=text)
+
+    def get_settings_keyboard(self):
+        muted_bot = self.user.settings.get('muted_bot')
+        if muted_bot:
+            keys = [inline_keys.change_identity, inline_keys.unmute]
+        else:
+            keys = [inline_keys.change_identity, inline_keys.mute]
+
+        return create_keyboard(*keys, is_inline=True)
+
+    def get_settings_text(self):
+        text = constants.SETTINGS_START_MESSAGE.format(
+            first_name=self.user.first_name,
+            username=self.user.username,
+            identity=self.user.identity,
+        )
+
+        return text
 
 if __name__ == '__main__':
     logger.info('Bot started...')
