@@ -4,22 +4,24 @@ from typing import List, Tuple
 import constants
 from bson.objectid import ObjectId
 from src.constants import SUPPORTED_CONTENT_TYPES, inline_keys, post_status, post_type
-from src.utils.common import human_readable_size
+from src.utils.common import human_readable_size, json_encoder
 from src.utils.keyboard import create_keyboard
 from telebot import types
-from loguru import logger
+import json
+
 
 class Post:
     """
     General class for all types of posts: Question, Answer, Comment, etc.
     """
-    def __init__(self, mongodb, stackbot, post_id: str = None, chat_id: str = None):
+    def __init__(self, mongodb, stackbot, post_id: str = None, chat_id: str = None, is_gallery: bool = False):
         self.db = mongodb
         self.stackbot = stackbot
 
         self.post_id = post_id
         self.chat_id = chat_id
 
+        self.is_gallery = is_gallery
         self.emoji = constants.EMOJI.get(self.post_type)
         self.collection = self.db.post
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
@@ -33,7 +35,8 @@ class Post:
 
     @property
     def post_type(self) -> str:
-        return self.__class__.__name__.lower()
+        post_type = self.as_dict().get('type')
+        return post_type or self.__class__.__name__.lower()
 
     def update(self, message, replied_to_post_id: str = None) -> str:
         """
@@ -58,9 +61,11 @@ class Post:
             content = vars(content[-1]) if isinstance(content, list) else vars(content)
         content['content_type'] = message.content_type
 
+        # removing non-json-serializable data
+        content = self.remove_non_json_data(content)
+
         # Save to database
         set_data = {'date': message.date, 'type': self.post_type, 'replied_to_post_id': replied_to_post_id}
-
         output = self.collection.update_one({'chat.id': message.chat.id, 'status': post_status.PREP}, {
             '$push': {'content': content},
             '$set': set_data,
@@ -86,7 +91,7 @@ class Post:
         self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
         return post['_id']
 
-    def send_to_one(self, chat_id: str, preview: bool = False):
+    def send_to_one(self, chat_id: str, preview: bool = False, is_gallery: bool = False) -> types.Message:
         """
         Send post to user with chat_id.
 
@@ -108,11 +113,12 @@ class Post:
             'chat_id': chat_id,
             'message_id': sent_message.message_id,
             'preview': preview,
+            'is_gallery': is_gallery,
         })
 
         return sent_message
 
-    def send_to_many(self, chat_ids: list):
+    def send_to_many(self, chat_ids: list) -> types.Message:
         """
         Send post to all users.
 
@@ -125,7 +131,7 @@ class Post:
 
         return sent_message
 
-    def send_to_all(self):
+    def send_to_all(self)  -> types.Message:
         """
         Send post with post_id to all users.
 
@@ -323,3 +329,7 @@ class Post:
         from src.user import User
         user = User(chat_id=self.owner_chat_id, first_name=None, mongodb=self.db, stackbot=self.stackbot)
         return user.identity
+
+    @staticmethod
+    def remove_non_json_data(json_data):
+        return json.loads(json.dumps(json_data, default=json_encoder))

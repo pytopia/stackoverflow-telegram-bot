@@ -91,6 +91,7 @@ class StackBot:
                 mongodb=self.db, stackbot=self,
                 post_id=post_id
             )
+            self.user.post.is_gallery = call_info.get('is_gallery', False)
 
             # Demojize callback data and text
             call.data = emoji.demojize(call.data)
@@ -123,9 +124,9 @@ class StackBot:
             2. Send cancel message.
             3. Delete previous bot messages.
             """
-            self.user.reset()
-            self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
             self.user.clean_preview()
+            self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
+            self.user.reset()
 
         @self.bot.message_handler(text=[keys.send_post])
         def send_post(message):
@@ -153,8 +154,8 @@ class StackBot:
             )
 
             # Reset user state and data
-            self.user.reset()
             self.user.clean_preview()
+            self.user.reset()
 
         @self.bot.message_handler(text=[keys.settings])
         def settings(message):
@@ -353,19 +354,25 @@ class StackBot:
             1. Get the current post.
             2. Get the original post from replied_to_post_id.
             3. Edit message with original post keyboard and text.
+            4. Update callback data with original post_id.
             """
             post = self.user.post.as_dict()
-            original_post = self.db.post.find_one({'_id': post['replied_to_post_id']})
-            post_id = original_post['_id']
+            original_post_id = self.db.post.find_one({'_id': post['replied_to_post_id']})['_id']
 
             post_handler = Post(
                 mongodb=self.user.db, stackbot=self.user.stackbot,
-                post_id=post_id, chat_id=original_post['chat']['id'],
+                post_id=original_post_id, chat_id=original_post['chat']['id'],
             )
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
                 text=post_handler.get_text(),
                 reply_markup=post_handler.get_keyboard()
+            )
+
+            # we should change the post_id for the buttons
+            self.db.callback_data.update_one(
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
+                {'$set': {'post_id': original_post_id, 'preview': False}},
             )
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
