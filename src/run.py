@@ -62,8 +62,8 @@ class StackBot:
             """
             # Getting updated user before message reaches any other handler
             self.user = User(
-                chat_id=message.chat.id, mongodb=self.db, stackbot=self,
-                first_name=message.chat.first_name,
+                chat_id=message.chat.id, first_name=message.chat.first_name,
+                mongodb=self.db, stackbot=self,
             )
 
             # Demojize text
@@ -85,8 +85,8 @@ class StackBot:
             post_id = call_info.get('post_id')
 
             self.user = User(
-                chat_id=call.message.chat.id, mongodb=self.db, stackbot=self,
-                first_name=call.message.chat.first_name,
+                chat_id=call.message.chat.id, first_name=call.message.chat.first_name,
+                mongodb=self.db, stackbot=self,
                 post_id=post_id
             )
 

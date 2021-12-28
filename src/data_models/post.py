@@ -296,5 +296,5 @@ class Post:
         :param chat_id: Unique id of the user
         """
         from src.user import User
-        user = User(chat_id=chat_id, mongodb=self.db, stackbot=self.stackbot)
+        user = User(chat_id=chat_id, first_name=None, mongodb=self.db, stackbot=self.stackbot)
         return user.identity

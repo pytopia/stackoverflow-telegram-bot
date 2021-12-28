@@ -1,4 +1,7 @@
+from typing import Union
+
 from loguru import logger
+from telebot import types
 
 from src import constants
 from src.constants import states
@@ -12,7 +15,16 @@ class User:
     """
     Class to handle telegram bot users.
     """
-    def __init__(self, chat_id, mongodb, stackbot, first_name=None, post_id=None):
+    def __init__(self, chat_id: str, first_name: str, mongodb, stackbot, post_id: str = None):
+        """
+        Initialize user.
+
+        :param chat_id: Telegram chat id.
+        :param mongodb: MongoDB connection.
+        :param stackbot: Stackbot class object.
+        :param first_name: User first name.
+        :param post_id: ObjectId of the post, defaults to None.
+        """
         self.chat_id = chat_id
         self.db = mongodb
         self.stackbot = stackbot
@@ -53,14 +65,20 @@ class User:
 
     @property
     def identity(self):
+        """
+        User can have a custom identity:
+            - ananymous
+            - username
+            - first name
+
+        User identity is set from settings menu.
+        """
         user = self.user
         username = self.username
 
         identity_type = user['settings']['identity_type']
-
         if identity_type == 'ananymous':
             return self.chat_id
-
         if (identity_type == 'username') and (username is not None):
             return username
 
@@ -86,15 +104,24 @@ class User:
 
         return post_handler
 
-    def send_message(self, text, reply_markup=None, emojize=True):
+    def send_message(
+        self, text: str, reply_markup: Union[types.InlineKeyboardMarkup, types.ReplyKeyboardMarkup] = None,
+        emojize: bool = True
+    ):
         """
         Send message to user.
+
+        :param text: Message text.
+        :param reply_markup: Message reply markup.
+        :param emojize: Emojize text, defaults to True.
         """
         self.stackbot.send_message(chat_id=self.chat_id, text=text, reply_markup=reply_markup, emojize=emojize)
 
-    def update_state(self, state):
+    def update_state(self, state: str):
         """
         Update user state.
+
+        :param state: User state to set.
         """
         self.db.users.update_one({'chat.id': self.chat_id}, {'$set': {'state': state}})
 
@@ -136,9 +163,11 @@ class User:
             {'$unset': {f'tracker.{arg}': 1 for arg in args}}
         )
 
-    def delete_message(self, message_id):
+    def delete_message(self, message_id: str):
         """
         Delete user message.
+
+        :param message_id: Message id to delete.
         """
         self.stackbot.delete_message(chat_id=self.chat_id, message_id=message_id)
 
@@ -146,6 +175,8 @@ class User:
         """
         Preview message is used to show the user the post that is going to be created.
         This method deletes the previous preview message and keeps track of the new one.
+
+        :param new_preview_message: New preview message to track after deleting the old one, defaults to None.
         """
         old_preview_message_id = self.tracker.get('preview_message_id')
         if old_preview_message_id:
