@@ -10,44 +10,39 @@ class Answer(Post):
     """
     Class to handle the answers sent by the users to a question.
     """
-    def __init__(self, mongodb, stackbot, chat_id: str = None):
-        super().__init__(mongodb, stackbot, chat_id=chat_id)
-        self.emoji = ':bright_button:'
-
-    def send(self, post_id: str) -> dict:
+    def send(self) -> dict:
         """
         Send the answer to the right audience.
 
         :param post_id: ObjectId of the answer post.
         :return: The answer post.
         """
-        post = self.collection.find_one({'_id': post_id})
-        post_owner_chat_id = post['chat']['id']
+        post = self.as_dict()
 
         # Send to the user who asked question
         question = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
         question_owner_chat_id = question['chat']['id']
 
         # Send to Followers
-        followers = self.get_followers(post_id)
+        followers = self.get_followers()
 
-        self.send_to_many(post_id, list({post_owner_chat_id, question_owner_chat_id}) + followers)
+        self.send_to_many(list({self.owner_chat_id, question_owner_chat_id}) + followers)
         return post
 
-    def get_actions_keyboard(self, post_id: str, chat_id: str) -> types.InlineKeyboardMarkup:
+    def get_actions_keyboard(self) -> types.InlineKeyboardMarkup:
         """
         Get answer section actions keyboard.
 
         Keyboard changes depending on the user's role.
         If the user is the owner of the question, he can accept the answer.
         """
-        keys, _ = super().get_actions_keys_and_owner(post_id, chat_id)
+        keys, _ = super().get_actions_keys_and_owner()
 
-        answer = self.collection.find_one({'_id': post_id})
+        answer = self.as_dict()
         question = self.db.post.find_one({'_id': ObjectId(answer['replied_to_post_id'])})
         question_owner_chat_id = question['chat']['id']
 
-        if chat_id == question_owner_chat_id:
+        if self.chat_id == question_owner_chat_id:
             keys.append(inline_keys.accept)
 
         reply_markup = create_keyboard(*keys, is_inline=True)

@@ -6,7 +6,7 @@ from telebot import custom_filters
 
 from src import constants
 from src.bot import bot
-from src.constants import inline_keys, keyboards, keys, states
+from src.constants import inline_keys, keyboards, keys, states, post_type
 from src.data_models.post import Post
 from src.db import db
 from src.filters import IsAdmin
@@ -50,7 +50,7 @@ class StackBot:
             """
             self.user.send_message(constants.WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
             self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
-            self.user.update_settings(identity_type=inline_keys.anaymous, muted_bot=False)
+            self.user.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
             self.user.reset()
 
         @self.bot.middleware_handler(update_types=['message'])
@@ -82,7 +82,7 @@ class StackBot:
             # Every message sent with inline keyboard is stored in database with callback_data and
             # post_type (question, answer, comment, ...). When user clicks on an inline keyboard button,
             # we get the post type to know what kind of post we are dealing with.
-            self.answer_callback_query(call.id, text=call.data)
+            # self.answer_callback_query(call.id, text=call.data)
             call_info = self.get_call_info(call)
             post_id = call_info.get('post_id')
 
@@ -143,7 +143,8 @@ class StackBot:
                 self.user.send_message(constants.EMPTY_POST_MESSAGE)
                 return
 
-            self.user.post.send(post_id)
+            self.user.post.post_id = post_id
+            self.user.post.send()
             self.user.send_message(
                 text=constants.POST_OPEN_SUCCESS_MESSAGE.format(
                     post_type=self.user.post.post_type.title(),
@@ -190,7 +191,7 @@ class StackBot:
                 return
 
             post_id = self.user.post.update(message, replied_to_post_id=self.user.tracker.get('replied_to_post_id'))
-            new_preview_message = self.user.post.send_to_one(post_id=post_id, chat_id=message.chat.id, preview=True)
+            new_preview_message = self.user.post.send_to_one(chat_id=message.chat.id, preview=True)
             self.user.clean_preview(new_preview_message)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
@@ -205,10 +206,10 @@ class StackBot:
             self.answer_callback_query(call.id, text=inline_keys.actions)
 
             # actions keyboard (also update text)
-            reply_markup = self.user.post.get_actions_keyboard(self.user.post_id, call.message.chat.id)
+            reply_markup = self.user.post.get_actions_keyboard()
 
             # TODO: If in future, we update the posts in a queue structure, we can remove this
-            text = self.user.post.get_text(self.user.post_id)
+            text = self.user.post.get_text()
 
             self.edit_message(call.message.chat.id, call.message.message_id, text=text, reply_markup=reply_markup)
 
@@ -224,8 +225,13 @@ class StackBot:
             self.answer_callback_query(call.id, text=emoji.emojize(call.data))
             self.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
             self.user.track(replied_to_post_id=self.user.post_id)
+
+            current_post_type = post_type.COMMENT if call.data == inline_keys.comment else post_type.ANSWER
             self.user.send_message(
-                constants.POST_START_MESSAGE.format(**vars(self.user)),
+                constants.POST_START_MESSAGE.format(
+                    first_name=self.user.first_name,
+                    post_type=current_post_type
+                ),
                 reply_markup=keyboards.send_post
             )
 
@@ -245,7 +251,7 @@ class StackBot:
                 # back is called on a post (question, answer or comment)
                 self.edit_message(
                     call.message.chat.id, call.message.message_id,
-                    reply_markup=self.user.post.get_keyboard(post_id=self.user.post_id)
+                    reply_markup=self.user.post.get_keyboard()
                 )
             else:
                 # back is called in settings
@@ -269,14 +275,13 @@ class StackBot:
             """
             self.answer_callback_query(call.id, text=emoji.emojize(call.data))
 
-            post_id = self.user.post_id
             if call.data == inline_keys.like:
-                self.user.post.like(post_id)
-                keyboard = self.user.post.get_keyboard(post_id)
+                self.user.post.like()
+                keyboard = self.user.post.get_keyboard()
 
             elif call.data in [inline_keys.follow, inline_keys.unfollow]:
-                self.user.post.follow(post_id)
-                keyboard = self.user.post.get_actions_keyboard(post_id=post_id, chat_id=call.message.chat.id)
+                self.user.post.follow()
+                keyboard = self.user.post.get_actions_keyboard()
 
             # update main menu keyboard
             self.edit_message(
@@ -296,14 +301,13 @@ class StackBot:
             2. Edit message with new keyboard and text
                 - New post text reflects the new open/close status.
             """
-            post_id = self.user.post_id
-            self.user.post.open_close(post_id)
+            self.user.post.open_close()
 
             # update main menu keyboard
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
-                text=self.user.post.get_text(post_id),
-                reply_markup=self.user.post.get_actions_keyboard(post_id=post_id, chat_id=call.message.chat.id)
+                text=self.user.post.get_text(),
+                reply_markup=self.user.post.get_actions_keyboard()
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.change_identity)
@@ -350,18 +354,18 @@ class StackBot:
             2. Get the original post from replied_to_post_id.
             3. Edit message with original post keyboard and text.
             """
-            post = self.db.post.find_one({'_id': self.user.post.post_id})
+            post = self.user.post.as_dict()
             original_post = self.db.post.find_one({'_id': post['replied_to_post_id']})
             post_id = original_post['_id']
 
             post_handler = Post(
                 mongodb=self.user.db, stackbot=self.user.stackbot,
-                post_type=original_post['post_type'], chat_id=original_post['chat']['id'],
+                post_id=post_id, chat_id=original_post['chat']['id'],
             )
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
-                text=post_handler.get_text(post_id),
-                reply_markup=post_handler.get_keyboard(post_id)
+                text=post_handler.get_text(),
+                reply_markup=post_handler.get_keyboard()
             )
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))

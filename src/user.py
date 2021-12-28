@@ -4,7 +4,7 @@ from loguru import logger
 from telebot import types
 
 from src import constants
-from src.constants import inline_keys, states, post_type
+from src.constants import inline_keys, post_type, states
 from src.data_models.answer import Answer
 from src.data_models.comment import Comment
 from src.data_models.post import Post
@@ -33,9 +33,6 @@ class User:
         # Get the post user is working on
         # When user clicks on inline buttons, we have the post_id in our database.
         self.post_id = post_id
-        self.post_type = None
-        if post_id is not None:
-            self.post_type = self.db.post.find_one({'_id': self.post_id})['post_type']
 
         # post handlers
         self.question = Question(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
@@ -91,11 +88,14 @@ class User:
         """
         Return the right post handler based on user state or post type.
         """
-        if (self.post_type == post_type.QUESTION) or (self.state == states.ASK_QUESTION):
+        post = self.db.post.find_one({'_id': self.post_id}) or {}
+        user_state = self.state
+
+        if (post.get('type') == post_type.QUESTION) or (user_state == states.ASK_QUESTION):
             post_handler = self.question
-        elif (self.post_type == post_type.ANSWER) or (self.state == states.ANSWER_QUESTION):
+        elif (post.get('type') == post_type.ANSWER) or (user_state == states.ANSWER_QUESTION):
             post_handler = self.answer
-        elif (self.post_type == post_type.COMMENT) or (self.state == states.COMMENT_POST):
+        elif (post.get('type') == post_type.COMMENT) or (user_state == states.COMMENT_POST):
             post_handler = self.comment
         else:
             post_handler = Post(self.mongodb, self.stackbot, chat_id=self.chat_id)

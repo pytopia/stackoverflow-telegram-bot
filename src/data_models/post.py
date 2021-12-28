@@ -7,20 +7,33 @@ from src.constants import SUPPORTED_CONTENT_TYPES, inline_keys, post_status, pos
 from src.utils.common import human_readable_size
 from src.utils.keyboard import create_keyboard
 from telebot import types
-
+from loguru import logger
 
 class Post:
     """
     General class for all types of posts: Question, Answer, Comment, etc.
     """
-    def __init__(self, mongodb, stackbot, chat_id: str = None, post_type: str = None):
+    def __init__(self, mongodb, stackbot, post_id: str = None, chat_id: str = None):
         self.db = mongodb
         self.stackbot = stackbot
-        self.post_type = post_type or self.__class__.__name__.lower()
-        self.emoji = constants.EMOJI[self.post_type]
-        self.collection = self.db.post  # getattr(self.db, self.post_type)
+
+        self.post_id = post_id
         self.chat_id = chat_id
+
+        self.emoji = constants.EMOJI.get(self.post_type)
+        self.collection = self.db.post
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
+
+    def as_dict(self) -> dict:
+        return self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
+
+    @property
+    def owner_chat_id(self) -> str:
+        return self.as_dict()['chat']['id']
+
+    @property
+    def post_type(self) -> str:
+        return self.__class__.__name__.lower()
 
     def update(self, message, replied_to_post_id: str = None) -> str:
         """
@@ -46,7 +59,7 @@ class Post:
         content['content_type'] = message.content_type
 
         # Save to database
-        set_data = {'date': message.date, 'post_type': self.post_type, 'replied_to_post_id': replied_to_post_id}
+        set_data = {'date': message.date, 'type': self.post_type, 'replied_to_post_id': replied_to_post_id}
 
         output = self.collection.update_one({'chat.id': message.chat.id, 'status': post_status.PREP}, {
             '$push': {'content': content},
@@ -56,6 +69,8 @@ class Post:
         _id = output.upserted_id or self.collection.find_one({
             'chat.id': message.chat.id, 'status': post_status.PREP
         })['_id']
+
+        self.post_id = _id
         return _id
 
     def submit(self) -> str:
@@ -71,17 +86,16 @@ class Post:
         self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
         return post['_id']
 
-    def send_to_one(self, post_id: str, chat_id: str, preview: bool = False):
+    def send_to_one(self, chat_id: str, preview: bool = False):
         """
-        Send post with post_id to user with chat_id.
+        Send post to user with chat_id.
 
-        :param post_id: Unique id of the post
         :param chat_id: Unique id of the user
         :param preview: If True, send post in preview mode. Default is False.
         :return: Message sent to user.
         """
-        post_keyboard = self.get_keyboard(post_id, preview=preview)
-        post_text = self.get_text(post_id)
+        post_keyboard = self.get_keyboard(preview=preview)
+        post_text = self.get_text()
 
         # Preview to user mode or send to other users
         sent_message = self.stackbot.send_message(
@@ -90,7 +104,7 @@ class Post:
         )
 
         self.db.callback_data.insert_one({
-            'post_id': post_id,
+            'post_id': self.post_id,
             'chat_id': chat_id,
             'message_id': sent_message.message_id,
             'preview': preview,
@@ -98,42 +112,40 @@ class Post:
 
         return sent_message
 
-    def send_to_many(self, post_id: str, chat_ids: list):
+    def send_to_many(self, chat_ids: list):
         """
-        Send post with post_id to all users.
+        Send post to all users.
 
-        :param post_id: Unique id of the post.
         :param chat_ids: List of unique ids of the users.
         :return: Message sent to users.
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
             for chat_id in chat_ids:
-                sent_message = executor.submit(self.send_to_one, post_id, chat_id)
+                sent_message = executor.submit(self.send_to_one, chat_id)
 
         return sent_message
 
-    def send_to_all(self, post_id: str):
+    def send_to_all(self):
         """
         Send post with post_id to all users.
 
         :param post_id: Unique id of the post.
         :return: Message sent to users.
         """
-        chat_ids = map(lambda user: user['chat']['id'], self.db.users.find())
-        return self.send_to_many(post_id, chat_ids)
+        chat_ids = list(map(lambda user: user['chat']['id'], self.db.users.find()))
+        return self.send_to_many(chat_ids)
 
-    def get_text(self, post_id: str, preview: bool = False, prettify: bool = True) -> str:
+    def get_text(self, preview: bool = False, prettify: bool = True) -> str:
         """
-        Get post text with post_id.
+        Get post text.
 
-        :param post_id: Unique id of the post
         :param preview: If True, send post in preview mode. Default is False.
             - In preview mode, we add help information for user such as how to send the post.
         :param prettify: If True, prettify the text. Default is True.
             - Prettify adds extra information such as post type, from_user, date, etc.
         :return: Post text.
         """
-        post = self.collection.find_one({'_id': ObjectId(post_id)})
+        post = self.as_dict()
         post_text = ""
         for content in post['content']:
             if content['content_type'] == 'text' and content['text']:
@@ -151,7 +163,7 @@ class Post:
                     post_text=post_text, post_type=post_type
                 )
             else:
-                from_user = self.get_user_identity(chat_id=post['chat']['id'])
+                from_user = self.get_post_owner_identity()
                 post_text = constants.SEND_POST_TO_ALL_MESSAGE.format(
                     from_user=from_user, post_text=post_text, post_status=post['status'],
                     post_type=post_type, emoji=self.emoji,
@@ -159,18 +171,16 @@ class Post:
 
         return post_text
 
-    def get_keyboard(self, post_id: str, preview: bool = False) -> types.InlineKeyboardMarkup:
+    def get_keyboard(self, preview: bool = False) -> types.InlineKeyboardMarkup:
         """
         Get post keyboard that has attached files + other actions on post such as like, actions menu, etc.
 
-        :param post_id: Unique id of the post
         :param preview: If True, send post in preview mode. Default is False.
             - In preview mode, there is no actions button.
         :return: Post keyboard.
         """
-        post = self.collection.find_one({'_id': ObjectId(post_id)})
+        post = self.as_dict()
 
-        # get default keys
         keys, callback_data = [], []
         post_keyboard = None
         for content in post['content']:
@@ -182,9 +192,9 @@ class Post:
 
         # add show comments, answers, etc.
         num_comments = self.db.post.count_documents(
-            {'replied_to_post_id': post_id, 'post_type': post_type.COMMENT, 'status': post_status.OPEN})
+            {'replied_to_post_id': self.post_id, 'type': post_type.COMMENT, 'status': post_status.OPEN})
         num_answers = self.db.post.count_documents(
-            {'replied_to_post_id': post_id, 'post_type': post_type.ANSWER, 'status': post_status.OPEN})
+            {'replied_to_post_id': self.post_id, 'type': post_type.ANSWER, 'status': post_status.OPEN})
         if num_comments:
             keys.append(f'{inline_keys.show_comments} ({num_comments})')
             callback_data.append(inline_keys.show_comments)
@@ -199,7 +209,7 @@ class Post:
             callback_data.append(inline_keys.original_post)
 
         # add actions, like, etc. keys
-        liked_by_user = self.collection.find_one({'_id': ObjectId(post_id), 'likes': self.chat_id})
+        liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
         like_key = inline_keys.like if liked_by_user else inline_keys.unlike
         num_likes = len(post.get('likes', []))
         new_like_key = f'{like_key} ({num_likes})' if num_likes else f'{like_key}'
@@ -211,48 +221,46 @@ class Post:
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
 
-    def get_followers(self, post_id: str) -> list:
+    def get_followers(self) -> list:
         """
         Get all followers of the current post.
 
-        :param post_id: Unique id of the post
         :return: List of unique ids of the followers.
         """
-        return self.collection.find_one({'_id': ObjectId(post_id)}).get('followers', [])
+        return self.as_dict().get('followers', [])
 
-    def toggle(self, post_id: str, key: str) -> None:
+    def toggle(self, key: str) -> None:
         """
-        Pull/Push use to the collection key of the post with post_id.
+        Pull/Push use to the collection key of the post.
 
-        :param post_id: Unique id of the post
         :param key: Collection key to be toggled (push/pull)
         """
-        exists_flag = self.collection.find_one({'_id': ObjectId(post_id), key: self.chat_id})
+        exists_flag = self.collection.find_one({'_id': ObjectId(self.post_id), key: self.chat_id})
 
         if exists_flag:
-            self.collection.update_one({'_id': ObjectId(post_id)}, {'$pull': {key: self.chat_id}})
+            self.collection.update_one({'_id': ObjectId(self.post_id)}, {'$pull': {key: self.chat_id}})
         else:
             self.collection.update_one(
-                {'_id': ObjectId(post_id)}, {'$addToSet': {key: self.chat_id}}
+                {'_id': ObjectId(self.post_id)}, {'$addToSet': {key: self.chat_id}}
             )
 
-    def follow(self, post_id: str):
+    def follow(self):
         """
         Follow/Unfollow post with post_id.
 
         :param post_id: Unique id of the post
         """
-        self.toggle(post_id, 'followers')
+        self.toggle('followers')
 
-    def like(self, post_id: str):
+    def like(self):
         """
         Like post with post_id or unlike post if already liked.
 
         :param post_id: Unique id of the post
         """
-        self.toggle(post_id, 'likes')
+        self.toggle('likes')
 
-    def get_actions_keys_and_owner(self, post_id: str, chat_id: str) -> Tuple[List, str]:
+    def get_actions_keys_and_owner(self) -> Tuple[List, str]:
         """
         Get general actions keys and owner of the post. Every post has:
             - back
@@ -265,21 +273,21 @@ class Post:
         :param chat_id: Unique id of the user
         :return: List of actions keys and owner of the post.
         """
-        post = self.collection.find_one({'_id': post_id})
-        post_owner_chat_id = post['chat']['id']
+        post = self.as_dict()
+        owner_chat_id = self.owner_chat_id
 
         # every user can comment
         keys = [inline_keys.back, inline_keys.comment]
 
         # non-owner users can follow/unfollow post
-        if chat_id != post_owner_chat_id:
-            if chat_id in post.get('followers', []):
+        if self.chat_id != owner_chat_id:
+            if self.chat_id in post.get('followers', []):
                 keys.append(inline_keys.unfollow)
             else:
                 keys.append(inline_keys.follow)
 
         # post owners can edit, delete, open/close post.
-        if chat_id == post_owner_chat_id:
+        if self.chat_id == owner_chat_id:
             current_status = post['status']
             if current_status == post_status.OPEN:
                 keys.append(inline_keys.close)
@@ -288,26 +296,24 @@ class Post:
 
             keys.append(inline_keys.edit)
 
-        return keys, post_owner_chat_id
+        return keys, owner_chat_id
 
-    def open_close(self, post_id: str):
+    def open_close(self):
         """
-        Close/Open post with post_id.
+        Close/Open post.
         Nobody can comment/answer to a closed post.
-
-        :param post_id: Unique id of the post
         """
-        current_status = self.collection.find_one({'_id': ObjectId(post_id)})['status']
+        current_status = self.as_dict()['status']
         new_status = post_status.OPEN
         if current_status == post_status.OPEN:
             new_status = post_status.CLOSED
 
         self.collection.update_one(
-            {'_id': ObjectId(post_id)},
+            {'_id': ObjectId(self.post_id)},
             {'$set': {'status': new_status}}
         )
 
-    def get_user_identity(self, chat_id: str) -> str:
+    def get_post_owner_identity(self) -> str:
         """
         Return user identity.
         User identity can be 'anonymous', 'usrname', 'first_name'.
@@ -315,5 +321,5 @@ class Post:
         :param chat_id: Unique id of the user
         """
         from src.user import User
-        user = User(chat_id=chat_id, first_name=None, mongodb=self.db, stackbot=self.stackbot)
+        user = User(chat_id=self.owner_chat_id, first_name=None, mongodb=self.db, stackbot=self.stackbot)
         return user.identity
