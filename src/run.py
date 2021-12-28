@@ -7,6 +7,7 @@ from telebot import custom_filters
 from src import constants
 from src.bot import bot
 from src.constants import inline_keys, keyboards, keys, states
+from src.data_models.post import Post
 from src.db import db
 from src.filters import IsAdmin
 from src.user import User
@@ -81,6 +82,7 @@ class StackBot:
             # Every message sent with inline keyboard is stored in database with callback_data and
             # post_type (question, answer, comment, ...). When user clicks on an inline keyboard button,
             # we get the post type to know what kind of post we are dealing with.
+            self.answer_callback_query(call.id, text=call.data)
             call_info = self.get_call_info(call)
             post_id = call_info.get('post_id')
 
@@ -294,8 +296,6 @@ class StackBot:
             2. Edit message with new keyboard and text
                 - New post text reflects the new open/close status.
             """
-            self.answer_callback_query(call.id, text=call.data)
-
             post_id = self.user.post_id
             self.user.post.open_close(post_id)
 
@@ -317,8 +317,6 @@ class StackBot:
                     - Username
                     - First name
             """
-            self.answer_callback_query(call.id, text=call.data)
-
             keyboard = create_keyboard(
                 inline_keys.ananymous, inline_keys.first_name, inline_keys.username,
                 is_inline=True
@@ -335,11 +333,35 @@ class StackBot:
             1. Update settings with new identity.
             2. Edit message with new settings text and main keyboard.
             """
-            self.answer_callback_query(call.id, text=call.data)
             self.user.update_settings(identity_type=call.data)
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
                 text=self.get_settings_text(), reply_markup=self.get_settings_keyboard()
+            )
+
+        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.original_post)
+        def original_post(call):
+            """
+            Original post inline key callback.
+
+            Get the original post from a reply.
+
+            1. Get the current post.
+            2. Get the original post from replied_to_post_id.
+            3. Edit message with original post keyboard and text.
+            """
+            post = self.db.post.find_one({'_id': self.user.post.post_id})
+            original_post = self.db.post.find_one({'_id': post['replied_to_post_id']})
+            post_id = original_post['_id']
+
+            post_handler = Post(
+                mongodb=self.user.db, stackbot=self.user.stackbot,
+                post_type=original_post['post_type'], chat_id=original_post['chat']['id'],
+            )
+            self.edit_message(
+                call.message.chat.id, call.message.message_id,
+                text=post_handler.get_text(post_id),
+                reply_markup=post_handler.get_keyboard(post_id)
             )
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))

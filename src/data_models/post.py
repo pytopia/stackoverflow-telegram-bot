@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 import constants
 from bson.objectid import ObjectId
-from src.constants import SUPPORTED_CONTENT_TYPES, inline_keys, post_status
+from src.constants import SUPPORTED_CONTENT_TYPES, inline_keys, post_status, post_type
 from src.utils.common import human_readable_size
 from src.utils.keyboard import create_keyboard
 from telebot import types
@@ -13,10 +13,11 @@ class Post:
     """
     General class for all types of posts: Question, Answer, Comment, etc.
     """
-    def __init__(self, mongodb, stackbot, chat_id: str = None):
+    def __init__(self, mongodb, stackbot, chat_id: str = None, post_type: str = None):
         self.db = mongodb
         self.stackbot = stackbot
-        self.post_type = self.__class__.__name__.lower()
+        self.post_type = post_type or self.__class__.__name__.lower()
+        self.emoji = constants.EMOJI[self.post_type]
         self.collection = self.db.post  # getattr(self.db, self.post_type)
         self.chat_id = chat_id
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
@@ -178,6 +179,24 @@ class Post:
                 file_size = human_readable_size(content['file_size'])
                 keys.append(f"{file_name} - {file_size}")
                 callback_data.append(content['file_unique_id'])
+
+        # add show comments, answers, etc.
+        num_comments = self.db.post.count_documents(
+            {'replied_to_post_id': post_id, 'post_type': post_type.COMMENT, 'status': post_status.OPEN})
+        num_answers = self.db.post.count_documents(
+            {'replied_to_post_id': post_id, 'post_type': post_type.ANSWER, 'status': post_status.OPEN})
+        if num_comments:
+            keys.append(f'{inline_keys.show_comments} ({num_comments})')
+            callback_data.append(inline_keys.show_comments)
+        if num_answers:
+            keys.append(f'{inline_keys.show_answers} ({num_answers})')
+            callback_data.append(inline_keys.show_answers)
+
+        # add back to original post key
+        original_post = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
+        if original_post:
+            keys.append(inline_keys.original_post)
+            callback_data.append(inline_keys.original_post)
 
         # add actions, like, etc. keys
         liked_by_user = self.collection.find_one({'_id': ObjectId(post_id), 'likes': self.chat_id})

@@ -4,7 +4,7 @@ from loguru import logger
 from telebot import types
 
 from src import constants
-from src.constants import inline_keys, states
+from src.constants import inline_keys, states, post_type
 from src.data_models.answer import Answer
 from src.data_models.comment import Comment
 from src.data_models.post import Post
@@ -38,9 +38,9 @@ class User:
             self.post_type = self.db.post.find_one({'_id': self.post_id})['post_type']
 
         # post handlers
-        self.question = Question(mongodb, stackbot, chat_id=chat_id)
-        self.answer = Answer(mongodb, stackbot, chat_id=chat_id)
-        self.comment = Comment(mongodb, stackbot, chat_id=chat_id)
+        self.question = Question(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
+        self.answer = Answer(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
+        self.comment = Comment(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
 
     @property
     def user(self):
@@ -84,18 +84,18 @@ class User:
         elif identity_type == inline_keys.first_name:
             return f"{user['chat']['first_name']} ({self.chat_id})"
 
-        return user['chat'][identity_type]
+        return user['chat'].get(identity_type) or self.chat_id
 
     @property
     def post(self):
         """
         Return the right post handler based on user state or post type.
         """
-        if (self.post_type == 'question') or (self.state == states.ASK_QUESTION):
+        if (self.post_type == post_type.QUESTION) or (self.state == states.ASK_QUESTION):
             post_handler = self.question
-        elif (self.post_type == 'answer') or (self.state == states.ANSWER_QUESTION):
+        elif (self.post_type == post_type.ANSWER) or (self.state == states.ANSWER_QUESTION):
             post_handler = self.answer
-        elif (self.post_type == 'comment') or (self.state == states.COMMENT_POST):
+        elif (self.post_type == post_type.COMMENT) or (self.state == states.COMMENT_POST):
             post_handler = self.comment
         else:
             post_handler = Post(self.mongodb, self.stackbot, chat_id=self.chat_id)

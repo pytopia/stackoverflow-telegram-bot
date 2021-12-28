@@ -39,7 +39,9 @@ inline_keys = SimpleNamespace(
     alias=':smiling_face_with_sunglasses: Alias',
     mute=':muted_speaker: Mute Bot',
     unmute=':speaker_high_volume: Unmute Bot',
-
+    show_comments=':right_anger_bubble: Comments',
+    show_answers=':dim_button: Answers',
+    original_post=':BACK_arrow: Original Post',
 )
 
 keyboards = SimpleNamespace(
@@ -61,6 +63,12 @@ post_status = SimpleNamespace(
     OPEN=':green_circle: Open',
 )
 
+post_type = SimpleNamespace(
+    QUESTION='question',
+    ANSWER='answer',
+    COMMENT='comment',
+)
+
 user_identity = SimpleNamespace(
     ANANYMOUS=':smiling_face_with_sunglasses: Ananymous',
     FIRST_NAME=':bust_in_silhouette: First Name',
@@ -69,6 +77,11 @@ user_identity = SimpleNamespace(
 )
 
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
+EMOJI = {
+    post_type.QUESTION: ':red_question_mark:',
+    post_type.ANSWER: ':bright_button:',
+    post_type.COMMENT: ':speech_balloon:',
+}
 
 # Constant Text Messages
 # General Templates
