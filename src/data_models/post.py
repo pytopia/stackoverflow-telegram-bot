@@ -91,7 +91,7 @@ class Post:
         self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
         return post['_id']
 
-    def send_to_one(self, chat_id: str, preview: bool = False, is_gallery: bool = False) -> types.Message:
+    def send_to_one(self, chat_id: str, preview: bool = False) -> types.Message:
         """
         Send post to user with chat_id.
 
@@ -113,7 +113,7 @@ class Post:
             'chat_id': chat_id,
             'message_id': sent_message.message_id,
             'preview': preview,
-            'is_gallery': is_gallery,
+            'is_gallery': self.is_gallery,
         })
 
         return sent_message
@@ -131,7 +131,7 @@ class Post:
 
         return sent_message
 
-    def send_to_all(self)  -> types.Message:
+    def send_to_all(self) -> types.Message:
         """
         Send post with post_id to all users.
 
@@ -196,6 +196,12 @@ class Post:
                 keys.append(f"{file_name} - {file_size}")
                 callback_data.append(content['file_unique_id'])
 
+        # add back to original post key
+        original_post = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
+        if original_post:
+            keys.append(inline_keys.original_post)
+            callback_data.append(inline_keys.original_post)
+
         # add show comments, answers, etc.
         num_comments = self.db.post.count_documents(
             {'replied_to_post_id': self.post_id, 'type': post_type.COMMENT, 'status': post_status.OPEN})
@@ -208,12 +214,6 @@ class Post:
             keys.append(f'{inline_keys.show_answers} ({num_answers})')
             callback_data.append(inline_keys.show_answers)
 
-        # add back to original post key
-        original_post = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
-        if original_post:
-            keys.append(inline_keys.original_post)
-            callback_data.append(inline_keys.original_post)
-
         # add actions, like, etc. keys
         liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
         like_key = inline_keys.like if liked_by_user else inline_keys.unlike
@@ -223,6 +223,10 @@ class Post:
         if not preview:
             keys.extend([inline_keys.actions, new_like_key])
             callback_data.extend([inline_keys.actions, inline_keys.like])
+
+        if self.is_gallery:
+            keys.extend([inline_keys.prev_post, inline_keys.next_post])
+            callback_data.extend([inline_keys.prev_post, inline_keys.next_post])
 
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard

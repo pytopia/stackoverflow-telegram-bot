@@ -41,7 +41,9 @@ inline_keys = SimpleNamespace(
     unmute=':speaker_high_volume: Unmute Bot',
     show_comments=':right_anger_bubble: Comments',
     show_answers=':dim_button: Answers',
-    original_post=':BACK_arrow: Original Post',
+    original_post=':BACK_arrow:',
+    next_post=':play_button:',
+    prev_post=':reverse_button:',
 )
 
 keyboards = SimpleNamespace(

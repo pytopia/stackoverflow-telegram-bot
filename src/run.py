@@ -82,7 +82,7 @@ class StackBot:
             # Every message sent with inline keyboard is stored in database with callback_data and
             # post_type (question, answer, comment, ...). When user clicks on an inline keyboard button,
             # we get the post type to know what kind of post we are dealing with.
-            # self.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
             call_info = self.get_call_info(call)
             post_id = call_info.get('post_id')
 
@@ -361,7 +361,7 @@ class StackBot:
 
             post_handler = Post(
                 mongodb=self.user.db, stackbot=self.user.stackbot,
-                post_id=original_post_id, chat_id=original_post['chat']['id'],
+                post_id=original_post_id, chat_id=self.user.chat_id,
             )
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
@@ -372,7 +372,38 @@ class StackBot:
             # we should change the post_id for the buttons
             self.db.callback_data.update_one(
                 {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
-                {'$set': {'post_id': original_post_id, 'preview': False}},
+                {'$set': {'post_id': original_post_id, 'preview': False, 'is_gallery': False}},
+            )
+
+        @bot.callback_query_handler(
+            func=lambda call: call.data in [inline_keys.show_comments, inline_keys.show_answers]
+        )
+        def show_posts(call):
+            """
+            """
+            post = self.user.post.as_dict()
+
+            gallery_post_type = post_type.ANSWER if call.data == inline_keys.show_answers else post_type.COMMENT
+            posts = self.db.post.find({'replied_to_post_id': post['_id'], 'type': gallery_post_type})
+            num_posts = self.db.post.count_documents({'replied_to_post_id': post['_id'], 'type': gallery_post_type})
+            next_post = next(posts)
+
+            is_gallery = True if num_posts > 1 else False
+            post_handler = Post(
+                mongodb=self.user.db, stackbot=self.user.stackbot,
+                post_id=next_post['_id'], chat_id=self.user.chat_id,
+                is_gallery=is_gallery
+            )
+            self.edit_message(
+                call.message.chat.id, call.message.message_id,
+                text=post_handler.get_text(),
+                reply_markup=post_handler.get_keyboard()
+            )
+
+            # we should change the post_id for the buttons
+            self.db.callback_data.update_one(
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
+                {'$set': {'post_id': next_post['_id'], 'preview': False, 'is_gallery': is_gallery}},
             )
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
