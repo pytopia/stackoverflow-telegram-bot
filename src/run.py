@@ -48,10 +48,7 @@ class StackBot:
             2. Insert (if user is new, or update) user in database.
             3. Reset user data (settings, state, track data)
             """
-            self.user.send_message(constants.WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
-            self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
-            self.user.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
-            self.user.reset()
+            self.user.register(message)
 
         @self.bot.middleware_handler(update_types=['message'])
         def init_message_handler(bot_instance, message):
@@ -66,6 +63,10 @@ class StackBot:
                 chat_id=message.chat.id, first_name=message.chat.first_name,
                 mongodb=self.db, stackbot=self,
             )
+
+            # register user if not exists
+            if not self.user.exists():
+                self.user.register(message)
 
             # Demojize text
             if message.content_type == 'text':
@@ -82,18 +83,21 @@ class StackBot:
             # Every message sent with inline keyboard is stored in database with callback_data and
             # post_type (question, answer, comment, ...). When user clicks on an inline keyboard button,
             # we get the post type to know what kind of post we are dealing with.
-            self.answer_callback_query(call.id, text=call.data)
             call_info = self.get_call_info(call)
             post_id = call_info.get('post_id')
-
             self.user = User(
                 chat_id=call.message.chat.id, first_name=call.message.chat.first_name,
                 mongodb=self.db, stackbot=self,
                 post_id=post_id
             )
+
+            # register user if not exists
+            if not self.user.exists():
+                self.user.register(call.message)
+
             self.user.post.is_gallery = call_info.get('is_gallery', False)
 
-            # Demojize callback data and text
+            # Demojize text
             call.data = emoji.demojize(call.data)
             call.message.text = emoji.demojize(call.message.text)
 
@@ -191,7 +195,7 @@ class StackBot:
                 )
                 return
 
-            post_id = self.user.post.update(message, replied_to_post_id=self.user.tracker.get('replied_to_post_id'))
+            self.user.post.update(message, replied_to_post_id=self.user.tracker.get('replied_to_post_id'))
             new_preview_message = self.user.post.send_to_one(chat_id=message.chat.id, preview=True)
             self.user.clean_preview(new_preview_message)
 
@@ -204,7 +208,7 @@ class StackBot:
             2. Get post text content.
             3. Edit message with post text and actions keyboard.
             """
-            self.answer_callback_query(call.id, text=inline_keys.actions)
+            self.answer_callback_query(call.id, text=call.data)
 
             # actions keyboard (also update text)
             reply_markup = self.user.post.get_actions_keyboard()
@@ -223,7 +227,8 @@ class StackBot:
             2. Store replied to post_id in user tracker for storing the answer/comment.
             3. Send start typing message.
             """
-            self.answer_callback_query(call.id, text=emoji.emojize(call.data))
+            self.answer_callback_query(call.id, text=call.data)
+
             self.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
             self.user.track(replied_to_post_id=self.user.post_id)
 
@@ -245,7 +250,7 @@ class StackBot:
                 - For a post: Edit message with post keyboard.
                 - For settings: Edit message with settings keyboard.
             """
-            self.answer_callback_query(call.id, text=inline_keys.back)
+            self.answer_callback_query(call.id, text=call.data)
 
             # main menu keyboard
             if self.user.post_id is not None:
@@ -274,7 +279,7 @@ class StackBot:
                 - ...
             2. Edit message with new keyboard that toggles based on pull/push.
             """
-            self.answer_callback_query(call.id, text=emoji.emojize(call.data))
+            self.answer_callback_query(call.id, text=call.data)
 
             if call.data == inline_keys.like:
                 self.user.post.like()
@@ -302,6 +307,8 @@ class StackBot:
             2. Edit message with new keyboard and text
                 - New post text reflects the new open/close status.
             """
+            self.answer_callback_query(call.id, text=call.data)
+
             self.user.post.open_close()
 
             # update main menu keyboard
@@ -322,6 +329,8 @@ class StackBot:
                     - Username
                     - First name
             """
+            self.answer_callback_query(call.id, text=call.data)
+
             keyboard = create_keyboard(
                 inline_keys.ananymous, inline_keys.first_name, inline_keys.username,
                 is_inline=True
@@ -338,6 +347,8 @@ class StackBot:
             1. Update settings with new identity.
             2. Edit message with new settings text and main keyboard.
             """
+            self.answer_callback_query(call.id, text=call.data)
+
             self.user.update_settings(identity_type=call.data)
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
@@ -356,6 +367,8 @@ class StackBot:
             3. Edit message with original post keyboard and text.
             4. Update callback data with original post_id.
             """
+            self.answer_callback_query(call.id, text=call.data)
+
             post = self.user.post.as_dict()
             original_post_id = self.db.post.find_one({'_id': post['replied_to_post_id']})['_id']
 
@@ -381,30 +394,34 @@ class StackBot:
         def show_posts(call):
             """
             """
+            self.answer_callback_query(call.id, text=call.data)
+
             post = self.user.post.as_dict()
 
             gallery_post_type = post_type.ANSWER if call.data == inline_keys.show_answers else post_type.COMMENT
-            posts = self.db.post.find({'replied_to_post_id': post['_id'], 'type': gallery_post_type})
+            posts = self.db.post.find({'replied_to_post_id': post['_id'], 'type': gallery_post_type}).sort('date', -1)
             num_posts = self.db.post.count_documents({'replied_to_post_id': post['_id'], 'type': gallery_post_type})
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
-            post_handler = Post(
-                mongodb=self.user.db, stackbot=self.user.stackbot,
-                post_id=next_post['_id'], chat_id=self.user.chat_id,
-                is_gallery=is_gallery
-            )
-            self.edit_message(
-                call.message.chat.id, call.message.message_id,
-                text=post_handler.get_text(),
-                reply_markup=post_handler.get_keyboard()
-            )
+            self.edit_post(call, next_post['_id'], is_gallery)
 
-            # we should change the post_id for the buttons
-            self.db.callback_data.update_one(
-                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
-                {'$set': {'post_id': next_post['_id'], 'preview': False, 'is_gallery': is_gallery}},
-            )
+        @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.next_post, inline_keys.prev_post])
+        def next_prev_callback(call):
+            post = self.user.post.as_dict()
+
+            operator = '$gt' if call.data == inline_keys.next_post else '$lt'
+            asc_desc = 1 if call.data == inline_keys.next_post else -1
+            posts = self.db.post.find({'type': post['type'], 'date': {operator: post['date']}}).sort('date', asc_desc)
+
+            try:
+                next_post = next(posts)
+            except StopIteration:
+                self.answer_callback_query(call.id, ':red_exclamation_mark: No more posts!')
+                return
+
+            is_gallery = True
+            self.edit_post(call, next_post['_id'], is_gallery)
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
@@ -419,7 +436,26 @@ class StackBot:
             """
             Raises not implemented callback answer for buttons that are not working yet.
             """
-            self.answer_callback_query(call.id, text=f':cross_mark: {call.data} not impoleented.')
+            self.answer_callback_query(call.id, text=f':cross_mark: {call.data} not implemented.')
+
+    def edit_post(self, call, next_post_id, is_gallery=False):
+        post_handler = Post(
+            mongodb=self.user.db, stackbot=self.user.stackbot,
+            post_id=next_post_id, chat_id=self.user.chat_id,
+            is_gallery=is_gallery
+        )
+        self.edit_message(
+            call.message.chat.id, call.message.message_id,
+            text=post_handler.get_text(),
+            reply_markup=post_handler.get_keyboard()
+        )
+
+        # we should change the post_id for the buttons
+        self.db.callback_data.update_one(
+            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
+            {'$set': {'post_id': next_post_id, 'preview': False, 'is_gallery': is_gallery}},
+        )
+        self.answer_callback_query(call.id, text=call.data)
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True):
         """

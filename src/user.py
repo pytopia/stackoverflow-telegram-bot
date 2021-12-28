@@ -4,10 +4,9 @@ from loguru import logger
 from telebot import types
 
 from src import constants
-from src.constants import inline_keys, post_type, states
+from src.constants import inline_keys, keyboards, post_type, states
 from src.data_models.answer import Answer
 from src.data_models.comment import Comment
-from src.data_models.post import Post
 from src.data_models.question import Question
 
 
@@ -143,6 +142,15 @@ class User:
             return False
 
         return True
+
+    def register(self, message):
+        self.send_message(
+            constants.WELCOME_MESSAGE.format(first_name=self.first_name),
+            reply_markup=keyboards.main
+        )
+        self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
+        self.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
+        self.reset()
 
     def track(self, **kwargs):
         """

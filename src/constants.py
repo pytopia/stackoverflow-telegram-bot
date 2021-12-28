@@ -59,8 +59,8 @@ states = SimpleNamespace(
 )
 
 post_status = SimpleNamespace(
-    PREP=':white_circle: Typing...',
-    DRAFT=':yello_circle: Draft',
+    PREP=':yellow_circle: Typing...',
+    DRAFT=':white_circle: Draft',
     CLOSED=':red_circle: Closed',
     OPEN=':green_circle: Open',
 )
@@ -107,6 +107,8 @@ SEND_POST_TO_ALL_MESSAGE = (
     '{post_status}'
     '\n\n'
     '{post_text}'
+    '\n\n'
+    '<code>{date}</code>'
 )
 POST_START_MESSAGE = (
     ":pencil: <strong>{first_name}</strong>, send your <strong>{post_type}</strong> here.\n\n"

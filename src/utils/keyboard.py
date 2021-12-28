@@ -2,7 +2,7 @@ import emoji
 from telebot import types
 
 
-def create_keyboard(*keys, row_width=3, resize_keyboard=True, is_inline=False, callback_data=None):
+def create_keyboard(*keys, row_width=2, resize_keyboard=True, is_inline=False, callback_data=None):
     from src.constants import inline_keys
     """
     Create a keyboard with buttons.

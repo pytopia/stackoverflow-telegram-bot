@@ -4,7 +4,7 @@ from typing import List, Tuple
 import constants
 from bson.objectid import ObjectId
 from src.constants import SUPPORTED_CONTENT_TYPES, inline_keys, post_status, post_type
-from src.utils.common import human_readable_size, json_encoder
+from src.utils.common import human_readable_size, json_encoder, human_readable_unix_time
 from src.utils.keyboard import create_keyboard
 from telebot import types
 import json
@@ -162,8 +162,9 @@ class Post:
             post_text = constants.EMPTY_QUESTION_TEXT_MESSAGE
 
         # prettify message with other information such as sender, post status, etc.
+        post_text = post_text.strip()
         if prettify:
-            post_type = self.post_type.title()
+            post_type = post['type'].title()
             if preview:
                 post_text = constants.POST_PREVIEW_MESSAGE.format(
                     post_text=post_text, post_type=post_type
@@ -173,6 +174,7 @@ class Post:
                 post_text = constants.SEND_POST_TO_ALL_MESSAGE.format(
                     from_user=from_user, post_text=post_text, post_status=post['status'],
                     post_type=post_type, emoji=self.emoji,
+                    date=human_readable_unix_time(post['date']),
                 )
 
         return post_text
