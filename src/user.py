@@ -98,7 +98,7 @@ class User:
         elif (post.get('type') == post_type.COMMENT) or (user_state == states.COMMENT_POST):
             post_handler = self.comment
         else:
-            post_handler = Post(self.mongodb, self.stackbot, chat_id=self.chat_id)
+            post_handler = self.question
 
         return post_handler
 
