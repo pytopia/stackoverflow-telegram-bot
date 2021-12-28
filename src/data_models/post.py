@@ -101,14 +101,17 @@ class Post:
         Send post with post_id to all users.
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.map(self.send_to_one, repeat(post_id), chat_ids)
+            for chat_id in chat_ids:
+                sent_message = executor.submit(self.send_to_one, post_id, chat_id)
+
+        return sent_message
 
     def send_to_all(self, post_id: str):
         """
         Send post with post_id to all users.
         """
         chat_ids = map(lambda user: user['chat']['id'], self.db.users.find())
-        self.send_to_many(post_id, chat_ids)
+        return self.send_to_many(post_id, chat_ids)
 
     def get_text(self, post_id: str, preview: bool = False, prettify: bool = True):
         """
