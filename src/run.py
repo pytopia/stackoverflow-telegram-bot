@@ -49,7 +49,7 @@ class StackBot:
             """
             self.user.send_message(constants.WELCOME_MESSAGE.format(**vars(self.user)), reply_markup=keyboards.main)
             self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
-            self.user.update_settings(identity_type='ananymous', muted_bot=False)
+            self.user.update_settings(identity_type=inline_keys.anaymous, muted_bot=False)
             self.user.reset()
 
         @self.bot.middleware_handler(update_types=['message'])
@@ -321,13 +321,12 @@ class StackBot:
 
             keyboard = create_keyboard(
                 inline_keys.ananymous, inline_keys.first_name, inline_keys.username,
-                callback_data=['ananymous', 'first_name', 'username'],
                 is_inline=True
             )
             self.edit_message(call.message.chat.id, call.message.message_id, reply_markup=keyboard)
 
         @bot.callback_query_handler(
-            func=lambda call: call.data in ['ananymous', 'first_name', 'username']
+            func=lambda call: call.data in [inline_keys.ananymous, inline_keys.first_name, inline_keys.username]
         )
         def set_identity_callback(call):
             """

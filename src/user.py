@@ -4,7 +4,7 @@ from loguru import logger
 from telebot import types
 
 from src import constants
-from src.constants import states
+from src.constants import inline_keys, states
 from src.data_models.answer import Answer
 from src.data_models.comment import Comment
 from src.data_models.post import Post
@@ -77,14 +77,12 @@ class User:
         username = self.username
 
         identity_type = user['settings']['identity_type']
-        if identity_type == 'ananymous':
+        if identity_type == inline_keys.ananymous:
             return self.chat_id
-        if (identity_type == 'username') and (username is not None):
+        elif (identity_type == inline_keys.username) and (username is not None):
             return username
-
-        if not user['chat'].get(identity_type):
-            self.send_message(constants.IDENTITY_TYPE_NOT_SET_WARNING.format(identity_type=identity_type))
-            return self.chat_id
+        elif identity_type == inline_keys.first_name:
+            return f"{user['chat']['first_name']} ({self.chat_id})"
 
         return user['chat'][identity_type]
 
