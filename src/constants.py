@@ -109,7 +109,6 @@ SEND_POST_TO_ALL_MESSAGE = (
     '{emoji} <strong>New {post_type}</strong>\n'
     ':bust_in_silhouette: From: {from_user}\n'
     '{post_status}\n'
-    # f"{'_' * 20}\n"
     '\n'
     '{post_text}\n'
     '\n\n'
@@ -136,7 +135,4 @@ SETTINGS_START_MESSAGE = (
     ':bust_in_silhouette: {first_name} ({username})\n\n'
 
     ':smiling_face_with_sunglasses: Identity: <strong>{identity}</strong>\n\n'
-
-    # ':desktop_computer: GitHub: {github}\n'
-    # ':pencil: Bio: {bio}\n'
 )
