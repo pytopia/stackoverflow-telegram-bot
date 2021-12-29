@@ -150,7 +150,8 @@ class User:
     def register(self, message):
         self.send_message(
             constants.WELCOME_MESSAGE.format(first_name=self.first_name),
-            reply_markup=keyboards.main
+            reply_markup=keyboards.main,
+            delete_after=False
         )
         self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
         self.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)

@@ -481,8 +481,17 @@ class StackBot:
         """
         text = emoji.emojize(text) if emojize else text
         message = self.bot.send_message(chat_id, text, reply_markup=reply_markup)
-        self.queue_delete_message(chat_id, message.message_id, delete_after)
 
+        if reply_markup == keyboards.main and delete_after is not False:
+            delete_after = -1
+            prev_doc = self.db.auto_delete.find_one({
+                'chat_id': chat_id, 'delete_after': -1
+            })
+            if prev_doc:
+                self.delete_message(chat_id, prev_doc['message_id'])
+                db.auto_delete.delete_one({'_id': prev_doc['_id']})
+
+        self.queue_delete_message(chat_id, message.message_id, delete_after)
         return message
 
     def queue_delete_message(self, chat_id, message_id, delete_after):
