@@ -1,9 +1,8 @@
 from bson.objectid import ObjectId
 from src.constants import inline_keys
+from src.data_models.post import Post
 from src.utils.keyboard import create_keyboard
 from telebot import types
-
-from data_models.post import Post
 
 
 class Answer(Post):

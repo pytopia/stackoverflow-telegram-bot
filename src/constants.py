@@ -24,8 +24,8 @@ inline_keys = SimpleNamespace(
     answer=':bright_button: Answer',
     follow=':plus: Follow',
     unfollow=':minus: Unfollow',
-    like=':red_heart: Like',
-    unlike=':white_heart: Like',
+    like=':red_heart:',
+    unlike=':white_heart:',
     accept=':check_mark_button: Accept',
     comment=':speech_balloon: Comment',
     delete=':wastebasket: Delete',
@@ -39,11 +39,11 @@ inline_keys = SimpleNamespace(
     alias=':smiling_face_with_sunglasses: Alias',
     mute=':muted_speaker: Mute Bot',
     unmute=':speaker_high_volume: Unmute Bot',
-    show_comments=':right_anger_bubble: Comments',
-    show_answers=':dim_button: Answers',
-    original_post=':BACK_arrow: Original Post',
-    next_post=':play_button:',
-    prev_post=':reverse_button:',
+    show_comments=':right_anger_bubble:',
+    show_answers=':dim_button:',
+    original_post=':BACK_arrow:',
+    next_post='»',
+    prev_post='«',
 )
 
 keyboards = SimpleNamespace(
@@ -85,6 +85,10 @@ EMOJI = {
     post_type.COMMENT: ':speech_balloon:',
 }
 
+# Auto delete user and bot messages after a period of time
+DELETE_BOT_MESSAGES_AFTER_TIME = 10
+DELETE_USER_MESSAGES_AFTER_TIME = 10
+
 # Constant Text Messages
 # General Templates
 HOW_TO_ASK_QUESTION_GUIDE = read_file(DATA_DIR / 'guide.html')
@@ -104,11 +108,12 @@ POST_PREVIEW_MESSAGE = (
 SEND_POST_TO_ALL_MESSAGE = (
     '{emoji} <strong>New {post_type}</strong>\n'
     ':bust_in_silhouette: From: {from_user}\n'
-    '{post_status}'
+    '{post_status}\n'
+    # f"{'_' * 20}\n"
+    '\n'
+    '{post_text}\n'
     '\n\n'
-    '{post_text}'
-    '\n\n'
-    '<code>{date}</code>'
+    ':calendar: <code>{date}</code>'
 )
 POST_START_MESSAGE = (
     ":pencil: <strong>{first_name}</strong>, send your <strong>{post_type}</strong> here.\n\n"

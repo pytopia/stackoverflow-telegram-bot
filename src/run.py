@@ -1,4 +1,5 @@
 import re
+import time
 
 import emoji
 from loguru import logger
@@ -6,12 +7,14 @@ from telebot import custom_filters
 
 from src import constants
 from src.bot import bot
-from src.constants import inline_keys, keyboards, keys, states, post_type
+from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME,
+                           DELETE_USER_MESSAGES_AFTER_TIME, inline_keys,
+                           keyboards, keys, post_type, states)
 from src.data_models.post import Post
 from src.db import db
 from src.filters import IsAdmin
 from src.user import User
-from utils.keyboard import create_keyboard
+from src.utils.keyboard import create_keyboard
 
 
 class StackBot:
@@ -64,13 +67,16 @@ class StackBot:
                 mongodb=self.db, stackbot=self,
             )
 
-            # register user if not exists
+            # Register user if not exists
             if not self.user.exists():
                 self.user.register(message)
 
             # Demojize text
             if message.content_type == 'text':
                 message.text = emoji.demojize(message.text)
+
+            # Auto delete user message to keep the bot clean
+            self.queue_delete_message(message.chat.id, message.message_id, DELETE_USER_MESSAGES_AFTER_TIME)
 
         @self.bot.middleware_handler(update_types=['callback_query'])
         def init_callback_handler(bot_instance, call):
@@ -116,8 +122,8 @@ class StackBot:
             self.user.update_state(states.ASK_QUESTION)
             self.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.send_post)
             self.user.send_message(constants.POST_START_MESSAGE.format(
-                first_name=self.user.first_name, post_type='question')
-            )
+                first_name=self.user.first_name, post_type='question'
+            ))
 
         @self.bot.message_handler(text=[keys.cancel])
         def cancel(message):
@@ -238,7 +244,7 @@ class StackBot:
                     first_name=self.user.first_name,
                     post_type=current_post_type
                 ),
-                reply_markup=keyboards.send_post
+                reply_markup=keyboards.send_post,
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.back)
@@ -412,7 +418,13 @@ class StackBot:
 
             operator = '$gt' if call.data == inline_keys.next_post else '$lt'
             asc_desc = 1 if call.data == inline_keys.next_post else -1
-            posts = self.db.post.find({'type': post['type'], 'date': {operator: post['date']}}).sort('date', asc_desc)
+            posts = self.db.post.find(
+                {
+                    'replied_to_post_id': post['replied_to_post_id'],
+                    'type': post['type'],
+                    'date': {operator: post['date']}
+                }
+            ).sort('date', asc_desc)
 
             try:
                 next_post = next(posts)
@@ -457,14 +469,30 @@ class StackBot:
         )
         self.answer_callback_query(call.id, text=call.data)
 
-    def send_message(self, chat_id, text, reply_markup=None, emojize=True):
+    def send_message(self, chat_id, text, reply_markup=None, emojize=True, delete_after=DELETE_BOT_MESSAGES_AFTER_TIME):
         """
         Send message to telegram bot having a chat_id and text_content.
+
+        :param chat_id: Chat id of the user.
+        :param text: Text content of the message.
+        :param reply_markup: Reply markup of the message.
+        :param emojize: Emojize the text.
+        :param delete_after: Auto delete message in seconds.
         """
         text = emoji.emojize(text) if emojize else text
         message = self.bot.send_message(chat_id, text, reply_markup=reply_markup)
+        self.queue_delete_message(chat_id, message.message_id, delete_after)
 
         return message
+
+    def queue_delete_message(self, chat_id, message_id, delete_after):
+        if not delete_after:
+            return
+
+        self.db.auto_delete.insert_one({
+            'chat_id': chat_id, 'message_id': message_id,
+            'delete_after': delete_after, 'created_at': time.time(),
+        })
 
     def edit_message(self, chat_id, message_id, text=None, reply_markup=None, emojize: bool = True):
         """
@@ -493,11 +521,14 @@ class StackBot:
 
         # Send file to user with the appropriate send_file method according to the content_type
         send_method = getattr(self.bot, f'send_{content_type}')
-        send_method(
+        message = send_method(
             chat_id, file_id,
             reply_to_message_id=message_id,
             caption=f"<code>{mime_type or ''}</code>",
         )
+
+        # Delete message after a while
+        self.queue_delete_message(chat_id, message.message_id, DELETE_BOT_MESSAGES_AFTER_TIME)
 
     def file_unique_id_to_content(self, file_unique_id):
         """

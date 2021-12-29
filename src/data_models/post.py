@@ -1,13 +1,15 @@
 import concurrent.futures
+import json
 from typing import List, Tuple
 
-import constants
 from bson.objectid import ObjectId
-from src.constants import SUPPORTED_CONTENT_TYPES, inline_keys, post_status, post_type
-from src.utils.common import human_readable_size, json_encoder, human_readable_unix_time
+from src import constants
+from src.constants import (SUPPORTED_CONTENT_TYPES, inline_keys, post_status,
+                           post_type)
+from src.utils.common import (human_readable_size, human_readable_unix_time,
+                              json_encoder)
 from src.utils.keyboard import create_keyboard
 from telebot import types
-import json
 
 
 class Post:
@@ -105,7 +107,8 @@ class Post:
         # Preview to user mode or send to other users
         sent_message = self.stackbot.send_message(
             chat_id=chat_id, text=post_text,
-            reply_markup=post_keyboard
+            reply_markup=post_keyboard,
+            delete_after=False
         )
 
         self.db.callback_data.insert_one({
@@ -190,19 +193,19 @@ class Post:
         post = self.as_dict()
 
         keys, callback_data = [], []
-        post_keyboard = None
+        # add back to original post key
+        original_post = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
+        if original_post:
+            keys.append(inline_keys.original_post)
+            callback_data.append(inline_keys.original_post)
+
+        # add attachments
         for content in post['content']:
             if content['content_type'] != 'text':
                 file_name = content.get('file_name') or content['content_type']
                 file_size = human_readable_size(content['file_size'])
                 keys.append(f"{file_name} - {file_size}")
                 callback_data.append(content['file_unique_id'])
-
-        # add back to original post key
-        original_post = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
-        if original_post:
-            keys.append(inline_keys.original_post)
-            callback_data.append(inline_keys.original_post)
 
         # add show comments, answers, etc.
         num_comments = self.db.post.count_documents(
@@ -216,19 +219,41 @@ class Post:
             keys.append(f'{inline_keys.show_answers} ({num_answers})')
             callback_data.append(inline_keys.show_answers)
 
-        # add actions, like, etc. keys
-        liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
-        like_key = inline_keys.like if liked_by_user else inline_keys.unlike
-        num_likes = len(post.get('likes', []))
-        new_like_key = f'{like_key} ({num_likes})' if num_likes else f'{like_key}'
-
         if not preview:
-            keys.extend([inline_keys.actions, new_like_key])
-            callback_data.extend([inline_keys.actions, inline_keys.like])
+            # add actions, like, etc. keys
+            liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
+            like_key = inline_keys.like if liked_by_user else inline_keys.unlike
+            num_likes = len(post.get('likes', []))
+            new_like_key = f'{like_key} ({num_likes})' if num_likes else f'{like_key}'
+
+            keys.extend([new_like_key, inline_keys.actions])
+            callback_data.extend([inline_keys.like, inline_keys.actions])
 
         if self.is_gallery:
-            keys.extend([inline_keys.prev_post, inline_keys.next_post])
-            callback_data.extend([inline_keys.prev_post, inline_keys.next_post])
+            # A gallery post is a post that has more than one post and user
+            # can choose to go to next or previous post.
+            # Previous page key
+            keys.append(inline_keys.prev_post)
+            callback_data.append(inline_keys.prev_post)
+
+            # Page number
+            conditions = {
+                'type': post['type'],
+            }
+            if post.get('replied_to_post_id'):
+                conditions.update({'replied_to_post_id': post['replied_to_post_id']})
+            num_posts = self.db.post.count_documents(conditions)
+
+            conditions.update({'date': {'$lt': post['date']}})
+            post_position = self.db.post.count_documents(conditions) + 1
+
+            post_position_key = f' -- {post_position}/{num_posts} --'
+            keys.append(post_position_key)
+            callback_data.append('Page Number')
+
+            # Next page key
+            keys.append(inline_keys.next_post)
+            callback_data.append(inline_keys.next_post)
 
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard

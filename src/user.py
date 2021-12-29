@@ -4,7 +4,8 @@ from loguru import logger
 from telebot import types
 
 from src import constants
-from src.constants import inline_keys, keyboards, post_type, states
+from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
+                           keyboards, post_type, states)
 from src.data_models.answer import Answer
 from src.data_models.comment import Comment
 from src.data_models.question import Question
@@ -103,7 +104,7 @@ class User:
 
     def send_message(
         self, text: str, reply_markup: Union[types.InlineKeyboardMarkup, types.ReplyKeyboardMarkup] = None,
-        emojize: bool = True
+        emojize: bool = True, delete_after: Union[bool, int] = DELETE_BOT_MESSAGES_AFTER_TIME
     ):
         """
         Send message to user.
@@ -112,7 +113,10 @@ class User:
         :param reply_markup: Message reply markup.
         :param emojize: Emojize text, defaults to True.
         """
-        self.stackbot.send_message(chat_id=self.chat_id, text=text, reply_markup=reply_markup, emojize=emojize)
+        self.stackbot.send_message(
+            chat_id=self.chat_id, text=text, reply_markup=reply_markup,
+            emojize=emojize, delete_after=delete_after
+        )
 
     def update_state(self, state: str):
         """
