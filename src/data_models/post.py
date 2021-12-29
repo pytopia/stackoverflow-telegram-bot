@@ -224,7 +224,7 @@ class Post:
             liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
             like_key = inline_keys.like if liked_by_user else inline_keys.unlike
             num_likes = len(post.get('likes', []))
-            new_like_key = f'{like_key} ({num_likes})' if num_likes else f'{like_key}'
+            new_like_key = f'{like_key} ({num_likes})'
 
             keys.extend([new_like_key, inline_keys.actions])
             callback_data.extend([inline_keys.like, inline_keys.actions])
