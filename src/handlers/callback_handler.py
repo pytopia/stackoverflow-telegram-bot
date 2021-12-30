@@ -30,7 +30,7 @@ class CallbackHandler:
             post_id = call_info.get('post_id')
             self.stack.user = User(
                 chat_id=call.message.chat.id, first_name=call.message.chat.first_name,
-                mongodb=self.stack.db, stackbot=self,
+                mongodb=self.stack.db, stackbot=self.stack,
                 post_id=post_id
             )
 
@@ -314,7 +314,7 @@ class CallbackHandler:
             """
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
-            self.stack.answer_callback_query(call.id, text=f'Sending file: {call.data}...')
+            self.stack.answer_callback_query(call.id, text=f'{call.data}...')
             self.stack.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
         @bot.callback_query_handler(func=lambda call: True)

@@ -166,7 +166,11 @@ class StackBot:
         """
         Send file to telegram bot having a chat_id and file_id.
         """
-        file_id, content_type, mime_type = self.file_unique_id_to_content(file_unique_id)
+        content = self.file_unique_id_to_content(file_unique_id)
+        if not content:
+            return
+
+        file_id, content_type, mime_type = content['file_id'], content['content_type'], content.get('mime_type')
 
         # Send file to user with the appropriate send_file method according to the content_type
         send_method = getattr(self.bot, f'send_{content_type}')
@@ -187,8 +191,7 @@ class StackBot:
         if not query_result:
             return
 
-        content = query_result['content'][0]
-        return content['file_id'], content['content_type'], content.get('mime_type')
+        return query_result['content'][0]
 
     def delete_message(self, chat_id, message_id):
         """
