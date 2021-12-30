@@ -16,6 +16,7 @@ keys = SimpleNamespace(
     ask_question=':red_question_mark: Ask a Question',
     send_post=':envelope_with_arrow: Send',
     send_answer=':envelope_with_arrow: Send Answer',
+    search_questions=':magnifying_glass_tilted_right: Search Questions',
 )
 
 inline_keys = SimpleNamespace(
@@ -44,10 +45,12 @@ inline_keys = SimpleNamespace(
     original_post=':BACK_arrow:',
     next_post='»',
     prev_post='«',
+    last_page=':white_small_square:',
+    first_page=':white_small_square:'
 )
 
 keyboards = SimpleNamespace(
-    main=create_keyboard(keys.ask_question, keys.settings),
+    main=create_keyboard(keys.ask_question, keys.search_questions, keys.settings),
     send_post=create_keyboard(keys.cancel, keys.send_post),
 )
 
@@ -56,6 +59,7 @@ states = SimpleNamespace(
     ASK_QUESTION='ASK_QUESTION',
     ANSWER_QUESTION='ANSWER_QUESTION',
     COMMENT_POST='COMMENT_POST',
+    SEARCH_QUESTIONS='SEARCH_QUESTIONS',
 )
 
 post_status = SimpleNamespace(

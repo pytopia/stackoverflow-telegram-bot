@@ -1,4 +1,5 @@
 import pymongo
 
 client = pymongo.MongoClient("localhost", 27017)
-db = client.pystackoverflowbot
+db = client.test
+# db = client.pystackoverflowbot

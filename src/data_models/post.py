@@ -224,7 +224,7 @@ class Post:
             liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
             like_key = inline_keys.like if liked_by_user else inline_keys.unlike
             num_likes = len(post.get('likes', []))
-            new_like_key = f'{like_key} ({num_likes})'
+            new_like_key = f'{like_key} ({num_likes})' if num_likes else like_key
 
             keys.extend([new_like_key, inline_keys.actions])
             callback_data.extend([inline_keys.like, inline_keys.actions])
@@ -233,27 +233,31 @@ class Post:
             # A gallery post is a post that has more than one post and user
             # can choose to go to next or previous post.
             # Previous page key
-            keys.append(inline_keys.prev_post)
-            callback_data.append(inline_keys.prev_post)
 
-            # Page number
+            # Find current page number
             conditions = {
                 'type': post['type'],
             }
             if post.get('replied_to_post_id'):
                 conditions.update({'replied_to_post_id': post['replied_to_post_id']})
             num_posts = self.db.post.count_documents(conditions)
-
             conditions.update({'date': {'$lt': post['date']}})
             post_position = self.db.post.count_documents(conditions) + 1
 
+            # Previous page key
+            prev_key = inline_keys.prev_post if post_position > 1 else inline_keys.first_page
+            keys.append(prev_key)
+            callback_data.append(prev_key)
+
+            # Page number key
             post_position_key = f' -- {post_position}/{num_posts} --'
             keys.append(post_position_key)
             callback_data.append('Page Number')
 
             # Next page key
-            keys.append(inline_keys.next_post)
-            callback_data.append(inline_keys.next_post)
+            next_key = inline_keys.next_post if post_position < num_posts else inline_keys.last_page
+            keys.append(next_key)
+            callback_data.append(next_key)
 
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard

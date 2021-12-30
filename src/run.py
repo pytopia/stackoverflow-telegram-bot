@@ -179,6 +179,26 @@ class StackBot:
 
             self.user.send_message(text=self.get_settings_text(), reply_markup=self.get_settings_keyboard())
 
+        @self.bot.message_handler(text=[keys.search_questions])
+        def search_questions(message):
+            """
+            User cancels sending a post.
+
+            1. Send Settings Message.
+            """
+            if self.user.state != states.MAIN:
+                return
+
+            # self.user.update_state(states.SEARCH_QUESTIONS)
+
+            posts = self.db.post.find({'type': post_type.QUESTION}).sort('date', -1)
+            num_posts = self.db.post.count_documents({'type': post_type.QUESTION})
+            next_post = next(posts)
+
+            is_gallery = True if num_posts > 1 else False
+
+            self.send_gallery(chat_id=message.chat.id, post_id=next_post['_id'], is_gallery=is_gallery)
+
         # Handles all other messages with the supported content_types
         @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
         def echo(message):
@@ -203,7 +223,7 @@ class StackBot:
 
             self.user.post.update(message, replied_to_post_id=self.user.tracker.get('replied_to_post_id'))
             new_preview_message = self.user.post.send_to_one(chat_id=message.chat.id, preview=True)
-            self.user.clean_preview(new_preview_message)
+            self.user.clean_preview(new_preview_message.message_id)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -230,7 +250,9 @@ class StackBot:
             Answer/Comment inline key callback.
 
             1. Update user state.
-            2. Store replied to post_id in user tracker for storing the answer/comment.
+            2. Store replied to post_id in user tracker for storing the answer/comment when user is done.
+                When user sends a reply to a post, there will be replied_to_post_id key stored in the user tracker
+                to store the post_id of the post that the user replied to in the answer/comment or any other reply type.
             3. Send start typing message.
             """
             self.answer_callback_query(call.id, text=call.data)
@@ -403,24 +425,24 @@ class StackBot:
             self.answer_callback_query(call.id, text=call.data)
 
             post = self.user.post.as_dict()
-
             gallery_post_type = post_type.ANSWER if call.data == inline_keys.show_answers else post_type.COMMENT
             posts = self.db.post.find({'replied_to_post_id': post['_id'], 'type': gallery_post_type}).sort('date', -1)
             num_posts = self.db.post.count_documents({'replied_to_post_id': post['_id'], 'type': gallery_post_type})
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
-            self.edit_post(call, next_post['_id'], is_gallery)
+            self.edit_gallery(call, next_post['_id'], is_gallery)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.next_post, inline_keys.prev_post])
         def next_prev_callback(call):
-            post = self.user.post.as_dict()
+            self.answer_callback_query(call.id, text=call.data)
 
+            post = self.user.post.as_dict()
             operator = '$gt' if call.data == inline_keys.next_post else '$lt'
             asc_desc = 1 if call.data == inline_keys.next_post else -1
             posts = self.db.post.find(
                 {
-                    'replied_to_post_id': post['replied_to_post_id'],
+                    'replied_to_post_id': post.get('replied_to_post_id'),
                     'type': post['type'],
                     'date': {operator: post['date']}
                 }
@@ -433,7 +455,14 @@ class StackBot:
                 return
 
             is_gallery = True
-            self.edit_post(call, next_post['_id'], is_gallery)
+            self.edit_gallery(call, next_post['_id'], is_gallery)
+
+        @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.first_page, inline_keys.last_page])
+        def gallery_first_last_page(call):
+            """
+            First and last page of a gallery button.
+            """
+            self.answer_callback_query(call.id, text=':red_exclamation_mark: No more posts!')
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
@@ -450,24 +479,63 @@ class StackBot:
             """
             self.answer_callback_query(call.id, text=f':cross_mark: {call.data} not implemented.')
 
-    def edit_post(self, call, next_post_id, is_gallery=False):
+    def send_gallery(self, chat_id, post_id, is_gallery=False):
+        """
+        Send gallery of posts starting with the post with post_id.
+
+        :param chat_id: Chat id to send gallery to.
+        :param post_id: Post id to start gallery from.
+        :param is_gallery: If True, send gallery of posts. If False, send single post.
+            Next and previous buttions will be added to the message if is_gallery is True.
+        """
+        post_handler = Post(
+            mongodb=self.user.db, stackbot=self.user.stackbot,
+            post_id=post_id, chat_id=self.user.chat_id,
+            is_gallery=is_gallery
+        )
+        message = self.user.send_message(
+            text=post_handler.get_text(),
+            reply_markup=post_handler.get_keyboard(),
+            delete_after=False,
+        )
+
+        # if user asks for this gallery again, we delete the old one to keep the history clean.
+        self.user.clean_preview(message.message_id)
+
+        # we should store the callback data for the new message
+        self.db.callback_data.update_one(
+            {'chat_id': chat_id, 'message_id': message.message_id},
+            {'$set': {'post_id': post_id, 'preview': False, 'is_gallery': is_gallery}},
+            upsert=True
+        )
+
+    def edit_gallery(self, call, next_post_id, is_gallery=False):
+        """
+        Edit gallery of posts to show next or previous post. Next post to show is the one
+        with post_id=next_post_id.
+
+        :param chat_id: Chat id to send gallery to.
+        :param next_post_id: post_id of the next post to show.
+        :param is_gallery: If True, send gallery of posts. If False, send single post.
+            Next and previous buttions will be added to the message if is_gallery is True.
+        """
         post_handler = Post(
             mongodb=self.user.db, stackbot=self.user.stackbot,
             post_id=next_post_id, chat_id=self.user.chat_id,
             is_gallery=is_gallery
         )
+
         self.edit_message(
             call.message.chat.id, call.message.message_id,
             text=post_handler.get_text(),
             reply_markup=post_handler.get_keyboard()
         )
 
-        # we should change the post_id for the buttons
+        # we should update the post_id for the buttons cause it is a new post
         self.db.callback_data.update_one(
             {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
             {'$set': {'post_id': next_post_id, 'preview': False, 'is_gallery': is_gallery}},
         )
-        self.answer_callback_query(call.id, text=call.data)
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True, delete_after=DELETE_BOT_MESSAGES_AFTER_TIME):
         """

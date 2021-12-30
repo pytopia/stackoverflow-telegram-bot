@@ -2,7 +2,7 @@ import emoji
 from telebot import types
 
 
-def create_keyboard(*keys, row_width=3, resize_keyboard=True, is_inline=False, callback_data=None):
+def create_keyboard(*keys, reply_row_width=2, inline_row_width=3, resize_keyboard=True, is_inline=False, callback_data=None):
     from src.constants import inline_keys
     """
     Create a keyboard with buttons.
@@ -31,7 +31,7 @@ def create_keyboard(*keys, row_width=3, resize_keyboard=True, is_inline=False, c
             button = types.InlineKeyboardButton(key, callback_data=callback)
             buttons.append(button)
 
-            if (ind + 1) % row_width == 0:
+            if (ind + 1) % inline_row_width == 0:
                 markup.add(*buttons)
                 buttons = []
         else:
@@ -52,7 +52,7 @@ def create_keyboard(*keys, row_width=3, resize_keyboard=True, is_inline=False, c
         # create reply keyboard
         keys = list(map(emoji.emojize, keys))
         markup = types.ReplyKeyboardMarkup(
-            row_width=row_width,
+            row_width=reply_row_width,
             resize_keyboard=resize_keyboard
         )
         buttons = map(types.KeyboardButton, keys)

@@ -113,10 +113,12 @@ class User:
         :param reply_markup: Message reply markup.
         :param emojize: Emojize text, defaults to True.
         """
-        self.stackbot.send_message(
+        message = self.stackbot.send_message(
             chat_id=self.chat_id, text=text, reply_markup=reply_markup,
             emojize=emojize, delete_after=delete_after
         )
+
+        return message
 
     def update_state(self, state: str):
         """
@@ -182,7 +184,7 @@ class User:
         """
         self.stackbot.delete_message(chat_id=self.chat_id, message_id=message_id)
 
-    def clean_preview(self, new_preview_message=None):
+    def clean_preview(self, new_preview_message_id=None):
         """
         Preview message is used to show the user the post that is going to be created.
         This method deletes the previous preview message and keeps track of the new one.
@@ -194,8 +196,8 @@ class User:
             self.delete_message(old_preview_message_id)
             self.untrack('preview_message_id')
 
-        if new_preview_message:
-            self.track(preview_message_id=new_preview_message.message_id)
+        if new_preview_message_id:
+            self.track(preview_message_id=new_preview_message_id)
 
     def update_settings(self, **kwargs):
         """
