@@ -4,6 +4,7 @@ from src import constants
 from src.bot import bot
 from src.constants import (DELETE_USER_MESSAGES_AFTER_TIME, keyboards, keys,
                            post_status, post_type, states)
+from src.data_models.post import Post
 from src.user import User
 
 
@@ -107,7 +108,7 @@ class MessageHandler:
             if self.stack.user.state != states.MAIN:
                 return
 
-            self.stack.user.send_message(text=self.stack.get_settings_text(), reply_markup=self.stack.get_settings_keyboard())
+            self.stack.user.send_message(self.stack.get_settings_text(), self.stack.get_settings_keyboard())
 
         @self.stack.bot.message_handler(text=[keys.search_questions])
         def search_questions(message):
@@ -126,7 +127,7 @@ class MessageHandler:
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
-            gallery_message = self.stack.send_gallery(
+            gallery_message = self.send_gallery(
                 chat_id=message.chat.id, post_id=next_post['_id'],
                 is_gallery=is_gallery, gallery_filters=gallery_filters
             )
@@ -161,3 +162,35 @@ class MessageHandler:
             self.stack.user.post.update(message, replied_to_post_id=self.stack.user.tracker.get('replied_to_post_id'))
             new_preview_message = self.stack.user.post.send_to_one(chat_id=message.chat.id, preview=True)
             self.stack.user.clean_preview(new_preview_message.message_id)
+
+    def send_gallery(self, chat_id, post_id, is_gallery=False, gallery_filters=None):
+        """
+        Send gallery of posts starting with the post with post_id.
+
+        :param chat_id: Chat id to send gallery to.
+        :param post_id: Post id to start gallery from.
+        :param is_gallery: If True, send gallery of posts. If False, send single post.
+            Next and previous buttions will be added to the message if is_gallery is True.
+        """
+        post_handler = Post(
+            mongodb=self.stack.user.db, stackbot=self.stack,
+            post_id=post_id, chat_id=self.stack.user.chat_id,
+            is_gallery=is_gallery, gallery_filters=gallery_filters
+        )
+        message = self.stack.user.send_message(
+            text=post_handler.get_text(),
+            reply_markup=post_handler.get_keyboard(),
+            delete_after=False,
+        )
+
+        # if user asks for this gallery again, we delete the old one to keep the history clean.
+        self.stack.user.clean_preview(message.message_id)
+
+        # we should store the callback data for the new message
+        self.stack.db.callback_data.update_one(
+            {'chat_id': chat_id, 'message_id': message.message_id},
+            {'$set': {'post_id': post_id, 'preview': False, 'is_gallery': is_gallery}},
+            upsert=True
+        )
+
+        return message

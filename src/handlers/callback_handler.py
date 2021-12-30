@@ -3,8 +3,8 @@ import re
 import emoji
 from src import constants
 from src.bot import bot
-from src.constants import (inline_keys, keyboards, post_status, post_type,
-                           states)
+from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
+                           keyboards, post_status, post_type, states)
 from src.data_models.post import Post
 from src.user import User
 from src.utils.keyboard import create_keyboard
@@ -26,7 +26,7 @@ class CallbackHandler:
             # Every message sent with inline keyboard is stored in database with callback_data and
             # post_type (question, answer, comment, ...). When user clicks on an inline keyboard button,
             # we get the post type to know what kind of post we are dealing with.
-            call_info = self.stack.get_call_info(call)
+            call_info = self.get_call_info(call)
             post_id = call_info.get('post_id')
             self.stack.user = User(
                 chat_id=call.message.chat.id, first_name=call.message.chat.first_name,
@@ -45,7 +45,7 @@ class CallbackHandler:
             call.message.text = emoji.demojize(call.message.text)
 
             # update post info
-            gallery_filters = self.stack.get_gallery_filters(call.message.chat.id, call.message.message_id)
+            gallery_filters = self.get_gallery_filters(call.message.chat.id, call.message.message_id)
             self.stack.user.post.gallery_filters = gallery_filters
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
@@ -57,7 +57,7 @@ class CallbackHandler:
             2. Get post text content.
             3. Edit message with post text and actions keyboard.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             # actions keyboard (also update text)
             reply_markup = self.stack.user.post.get_actions_keyboard()
@@ -78,7 +78,7 @@ class CallbackHandler:
                 to store the post_id of the post that the user replied to in the answer/comment or any other reply type.
             3. Send start typing message.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             self.stack.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
             self.stack.user.track(replied_to_post_id=self.stack.user.post_id)
@@ -101,7 +101,7 @@ class CallbackHandler:
                 - For a post: Edit message with post keyboard.
                 - For settings: Edit message with settings keyboard.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             # main menu keyboard
             if self.stack.user.post_id is not None:
@@ -130,7 +130,7 @@ class CallbackHandler:
                 - ...
             2. Edit message with new keyboard that toggles based on pull/push.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             if call.data == inline_keys.like:
                 self.stack.user.post.like()
@@ -158,7 +158,7 @@ class CallbackHandler:
             2. Edit message with new keyboard and text
                 - New post text reflects the new open/close status.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             if call.data in [inline_keys.open, inline_keys.close]:
                 field = 'status'
@@ -190,7 +190,7 @@ class CallbackHandler:
                     - Username
                     - First name
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             keyboard = create_keyboard(
                 inline_keys.ananymous, inline_keys.first_name, inline_keys.username,
@@ -208,7 +208,7 @@ class CallbackHandler:
             1. Update settings with new identity.
             2. Edit message with new settings text and main keyboard.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             self.stack.user.update_settings(identity_type=call.data)
             self.stack.edit_message(
@@ -228,7 +228,7 @@ class CallbackHandler:
             3. Edit message with original post keyboard and text.
             4. Update callback data with original post_id.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             post = self.stack.user.post.as_dict()
             original_post_id = self.stack.db.post.find_one({'_id': post['replied_to_post_id']})['_id']
@@ -256,7 +256,7 @@ class CallbackHandler:
             """
             Show comments and answers of a post.
             """
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             post = self.stack.user.post.as_dict()
             gallery_post_type = post_type.ANSWER if call.data == inline_keys.show_answers else post_type.COMMENT
@@ -273,11 +273,11 @@ class CallbackHandler:
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
-            self.stack.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
+            self.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.next_post, inline_keys.prev_post])
         def next_prev_callback(call):
-            self.stack.answer_callback_query(call.id, text=call.data)
+            self.answer_callback_query(call.id, text=call.data)
 
             post = self.stack.user.post.as_dict()
             operator = '$gt' if call.data == inline_keys.next_post else '$lt'
@@ -296,30 +296,120 @@ class CallbackHandler:
             try:
                 next_post = next(posts)
             except StopIteration:
-                self.stack.answer_callback_query(call.id, ':red_exclamation_mark: No more posts!')
+                self.answer_callback_query(call.id, ':red_exclamation_mark: No more posts!')
                 return
 
             is_gallery = True
-            self.stack.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
+            self.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.first_page, inline_keys.last_page])
         def gallery_first_last_page(call):
             """
             First and last page of a gallery button.
             """
-            self.stack.answer_callback_query(call.id, text=':red_exclamation_mark: No more posts!')
+            self.answer_callback_query(call.id, text=':red_exclamation_mark: No more posts!')
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
             """
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
-            self.stack.answer_callback_query(call.id, text=f'{call.data}...')
-            self.stack.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
+            self.answer_callback_query(call.id, text=f'{call.data}...')
+            self.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
         @bot.callback_query_handler(func=lambda call: True)
         def not_implemented_callback(call):
             """
             Raises not implemented callback answer for buttons that are not working yet.
             """
-            self.stack.answer_callback_query(call.id, text=f':cross_mark: {call.data} not implemented.')
+            self.answer_callback_query(call.id, text=f':cross_mark: {call.data} not implemented.')
+
+    def answer_callback_query(self, call_id, text, emojize=True):
+        """
+        Answer to a callback query.
+        """
+        if emojize:
+            text = emoji.emojize(text)
+        self.stack.bot.answer_callback_query(call_id, text=text)
+
+    def send_file(self, chat_id, file_unique_id, message_id=None):
+        """
+        Send file to telegram bot having a chat_id and file_id.
+        """
+        content = self.file_unique_id_to_content(file_unique_id)
+        if not content:
+            return
+
+        file_id, content_type, mime_type = content['file_id'], content['content_type'], content.get('mime_type')
+
+        # Send file to user with the appropriate send_file method according to the content_type
+        send_method = getattr(self.stack.bot, f'send_{content_type}')
+        message = send_method(
+            chat_id, file_id,
+            reply_to_message_id=message_id,
+            caption=f"<code>{mime_type or ''}</code>",
+        )
+
+        # Delete message after a while
+        self.queue_delete_message(chat_id, message.message_id, DELETE_BOT_MESSAGES_AFTER_TIME)
+
+    def file_unique_id_to_content(self, file_unique_id):
+        """
+        Get file content having a file_id.
+        """
+        query_result = self.stack.db.post.find_one({'content.file_unique_id': file_unique_id}, {'content.$': 1})
+        if not query_result:
+            return
+
+        return query_result['content'][0]
+
+    def get_call_info(self, call):
+        """
+        Get call info from call data.
+
+        Every message with inline keyboard has information stored in database, particularly the post_id.
+
+        We store the post_id in the database to use it later when user click on any inline button.
+        For example, if user click on 'answer' button, we know which post_id to store answer for.
+        This post_id is stored in the database as 'replied_to_post_id' field.
+
+        We also store post_type in the database to use the right handler in user object (Question, Answer, Comment).
+        """
+        callback_data = self.stack.db.callback_data.find_one(
+            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id}
+        )
+        return callback_data or {}
+
+    def get_gallery_filters(self, chat_id, message_id):
+        result = self.stack.db.callback_data.find_one({'chat_id': chat_id, 'message_id': message_id})
+        if not result:
+            return {}
+        return result.get('gallery_filters', {})
+
+    def edit_gallery(self, call, next_post_id, is_gallery=False, gallery_fiters=None):
+        """
+        Edit gallery of posts to show next or previous post. Next post to show is the one
+        with post_id=next_post_id.
+
+        :param chat_id: Chat id to send gallery to.
+        :param next_post_id: post_id of the next post to show.
+        :param is_gallery: If True, send gallery of posts. If False, send single post.
+            Next and previous buttions will be added to the message if is_gallery is True.
+        """
+        post_handler = Post(
+            mongodb=self.stack.user.db, stackbot=self.stack,
+            post_id=next_post_id, chat_id=self.stack.user.chat_id,
+            is_gallery=is_gallery, gallery_filters=gallery_fiters
+        )
+
+        self.stack.edit_message(
+            call.message.chat.id, call.message.message_id,
+            text=post_handler.get_text(),
+            reply_markup=post_handler.get_keyboard()
+        )
+
+        # we should update the post_id for the buttons cause it is a new post
+        self.stack.db.callback_data.update_one(
+            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
+            {'$set': {'post_id': next_post_id, 'preview': False, 'is_gallery': is_gallery}},
+        )

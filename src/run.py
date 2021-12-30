@@ -4,11 +4,9 @@ import emoji
 from loguru import logger
 from telebot import custom_filters
 
-from src import constants
 from src.bot import bot
-from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
-                           keyboards)
-from src.data_models.post import Post
+from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME,
+                           SETTINGS_START_MESSAGE, inline_keys, keyboards)
 from src.db import db
 from src.filters import IsAdmin
 from src.handlers import CallbackHandler, CommandHandler, MessageHandler
@@ -54,66 +52,6 @@ class StackBot:
         # Callback handlers for inline buttons
         callback_handlers = CallbackHandler(stack=self)
         callback_handlers.register()
-
-    def send_gallery(self, chat_id, post_id, is_gallery=False, gallery_filters=None):
-        """
-        Send gallery of posts starting with the post with post_id.
-
-        :param chat_id: Chat id to send gallery to.
-        :param post_id: Post id to start gallery from.
-        :param is_gallery: If True, send gallery of posts. If False, send single post.
-            Next and previous buttions will be added to the message if is_gallery is True.
-        """
-        post_handler = Post(
-            mongodb=self.user.db, stackbot=self.user.stackbot,
-            post_id=post_id, chat_id=self.user.chat_id,
-            is_gallery=is_gallery, gallery_filters=gallery_filters
-        )
-        message = self.user.send_message(
-            text=post_handler.get_text(),
-            reply_markup=post_handler.get_keyboard(),
-            delete_after=False,
-        )
-
-        # if user asks for this gallery again, we delete the old one to keep the history clean.
-        self.user.clean_preview(message.message_id)
-
-        # we should store the callback data for the new message
-        self.db.callback_data.update_one(
-            {'chat_id': chat_id, 'message_id': message.message_id},
-            {'$set': {'post_id': post_id, 'preview': False, 'is_gallery': is_gallery}},
-            upsert=True
-        )
-
-        return message
-
-    def edit_gallery(self, call, next_post_id, is_gallery=False, gallery_fiters=None):
-        """
-        Edit gallery of posts to show next or previous post. Next post to show is the one
-        with post_id=next_post_id.
-
-        :param chat_id: Chat id to send gallery to.
-        :param next_post_id: post_id of the next post to show.
-        :param is_gallery: If True, send gallery of posts. If False, send single post.
-            Next and previous buttions will be added to the message if is_gallery is True.
-        """
-        post_handler = Post(
-            mongodb=self.user.db, stackbot=self.user.stackbot,
-            post_id=next_post_id, chat_id=self.user.chat_id,
-            is_gallery=is_gallery, gallery_filters=gallery_fiters
-        )
-
-        self.edit_message(
-            call.message.chat.id, call.message.message_id,
-            text=post_handler.get_text(),
-            reply_markup=post_handler.get_keyboard()
-        )
-
-        # we should update the post_id for the buttons cause it is a new post
-        self.db.callback_data.update_one(
-            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
-            {'$set': {'post_id': next_post_id, 'preview': False, 'is_gallery': is_gallery}},
-        )
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True, delete_after=DELETE_BOT_MESSAGES_AFTER_TIME):
         """
@@ -168,37 +106,6 @@ class StackBot:
         except Exception as e:
             logger.debug(e)
 
-    def send_file(self, chat_id, file_unique_id, message_id=None):
-        """
-        Send file to telegram bot having a chat_id and file_id.
-        """
-        content = self.file_unique_id_to_content(file_unique_id)
-        if not content:
-            return
-
-        file_id, content_type, mime_type = content['file_id'], content['content_type'], content.get('mime_type')
-
-        # Send file to user with the appropriate send_file method according to the content_type
-        send_method = getattr(self.bot, f'send_{content_type}')
-        message = send_method(
-            chat_id, file_id,
-            reply_to_message_id=message_id,
-            caption=f"<code>{mime_type or ''}</code>",
-        )
-
-        # Delete message after a while
-        self.queue_delete_message(chat_id, message.message_id, DELETE_BOT_MESSAGES_AFTER_TIME)
-
-    def file_unique_id_to_content(self, file_unique_id):
-        """
-        Get file content having a file_id.
-        """
-        query_result = self.db.post.find_one({'content.file_unique_id': file_unique_id}, {'content.$': 1})
-        if not query_result:
-            return
-
-        return query_result['content'][0]
-
     def delete_message(self, chat_id, message_id):
         """
         Delete bot message.
@@ -207,35 +114,6 @@ class StackBot:
             self.bot.delete_message(chat_id, message_id)
         except Exception as e:
             logger.debug('Error deleting message: Message not found.')
-
-    def get_call_info(self, call):
-        """
-        Get call info from call data.
-
-        Every message with inline keyboard has information stored in database, particularly the post_id.
-
-        We store the post_id in the database to use it later when user click on any inline button.
-        For example, if user click on 'answer' button, we know which post_id to store answer for.
-        This post_id is stored in the database as 'replied_to_post_id' field.
-
-        We also store post_type in the database to use the right handler in user object (Question, Answer, Comment).
-        """
-        callback_data = self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})
-        return callback_data or {}
-
-    def get_gallery_filters(self, chat_id, message_id):
-        result = self.db.callback_data.find_one({'chat_id': chat_id, 'message_id': message_id})
-        if not result:
-            return {}
-        return result.get('gallery_filters', {})
-
-    def answer_callback_query(self, call_id, text, emojize=True):
-        """
-        Answer to a callback query.
-        """
-        if emojize:
-            text = emoji.emojize(text)
-        self.bot.answer_callback_query(call_id, text=text)
 
     def get_settings_keyboard(self):
         """
@@ -253,7 +131,7 @@ class StackBot:
         """
         Returns settings text message.
         """
-        text = constants.SETTINGS_START_MESSAGE.format(
+        text = SETTINGS_START_MESSAGE.format(
             first_name=self.user.first_name,
             username=self.user.username,
             identity=self.user.identity,
