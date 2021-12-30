@@ -24,7 +24,7 @@ def create_keyboard(*keys, reply_row_width=2, inline_row_width=3, resize_keyboar
         markup = types.InlineKeyboardMarkup()
         buttons = []
         for ind, (key, callback) in enumerate(zip(keys, callback_data)):
-            if key == inline_keys.prev_post:
+            if key in [inline_keys.prev_post, inline_keys.first_page]:
                 break
 
             key = emoji.emojize(key)

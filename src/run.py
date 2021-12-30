@@ -9,7 +9,7 @@ from src import constants
 from src.bot import bot
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME,
                            DELETE_USER_MESSAGES_AFTER_TIME, inline_keys,
-                           keyboards, keys, post_type, states)
+                           keyboards, keys, post_status, post_type, states)
 from src.data_models.post import Post
 from src.db import db
 from src.filters import IsAdmin
@@ -107,6 +107,10 @@ class StackBot:
             call.data = emoji.demojize(call.data)
             call.message.text = emoji.demojize(call.message.text)
 
+            # update post info
+            gallery_filters = self.get_gallery_filters(call.message.chat.id, call.message.message_id)
+            self.user.post.gallery_filters = gallery_filters
+
         @self.bot.message_handler(text=[keys.ask_question])
         def ask_question(message):
             """
@@ -189,15 +193,23 @@ class StackBot:
             if self.user.state != states.MAIN:
                 return
 
-            # self.user.update_state(states.SEARCH_QUESTIONS)
-
-            posts = self.db.post.find({'type': post_type.QUESTION}).sort('date', -1)
-            num_posts = self.db.post.count_documents({'type': post_type.QUESTION})
+            # we should change the post_id for the buttons
+            gallery_filters = {'type': post_type.QUESTION, 'status': post_status.OPEN}
+            posts = self.db.post.find(gallery_filters).sort('date', -1)
+            num_posts = self.db.post.count_documents(gallery_filters)
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
+            gallery_message = self.send_gallery(
+                chat_id=message.chat.id, post_id=next_post['_id'],
+                is_gallery=is_gallery, gallery_filters=gallery_filters
+            )
 
-            self.send_gallery(chat_id=message.chat.id, post_id=next_post['_id'], is_gallery=is_gallery)
+            self.db.callback_data.update_one(
+                {'chat_id': gallery_message.chat.id, 'message_id': gallery_message.message_id},
+                {'$set': {'gallery_filters': gallery_filters}},
+                upsert=True,
+            )
 
         # Handles all other messages with the supported content_types
         @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
@@ -210,7 +222,6 @@ class StackBot:
             3. Send message preview to the user.
             4. Delete previous bot messages.
             """
-            print(message.text)
             if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
                 return
 
@@ -282,7 +293,7 @@ class StackBot:
 
             # main menu keyboard
             if self.user.post_id is not None:
-                # back is called on a post (question, answer or comment)
+                # back is called on a post (question, answer or comment
                 self.edit_message(
                     call.message.chat.id, call.message.message_id,
                     reply_markup=self.user.post.get_keyboard()
@@ -324,22 +335,32 @@ class StackBot:
             )
 
         @bot.callback_query_handler(
-            func=lambda call: call.data in [inline_keys.open, inline_keys.close]
+            func=lambda call: call.data in [inline_keys.open, inline_keys.close, inline_keys.delete, inline_keys.undelete]
         )
-        def open_close_post_callback(call):
+        def toggle_field_values_callback(call):
             """
-            Open/Close post.
+            Open/Close Delete/Undelete or any other toggling between two values.
             Open means that the post is open for new answers, comments, ...
 
-            1. Open/Close post with post_id.
+            1. Open/Close Delete/Undelete post with post_id.
             2. Edit message with new keyboard and text
                 - New post text reflects the new open/close status.
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            self.user.post.open_close()
+            if call.data in [inline_keys.open, inline_keys.close]:
+                field = 'status'
+                values = [post_status.OPEN, post_status.CLOSED]
+            elif call.data in [inline_keys.delete, inline_keys.undelete]:
+                field = 'status'
 
-            # update main menu keyboard
+                # toggle between deleted and current post status
+                other_status = self.user.post.post_status
+                if other_status == post_status.DELETED:
+                    other_status = post_status.OPEN
+                values = list({post_status.DELETED, other_status})
+
+            self.user.post.toggle_field_values(field=field, values=values)
             self.edit_message(
                 call.message.chat.id, call.message.message_id,
                 text=self.user.post.get_text(),
@@ -421,17 +442,26 @@ class StackBot:
         )
         def show_posts(call):
             """
+            Show comments and answers of a post.
             """
             self.answer_callback_query(call.id, text=call.data)
 
             post = self.user.post.as_dict()
             gallery_post_type = post_type.ANSWER if call.data == inline_keys.show_answers else post_type.COMMENT
-            posts = self.db.post.find({'replied_to_post_id': post['_id'], 'type': gallery_post_type}).sort('date', -1)
-            num_posts = self.db.post.count_documents({'replied_to_post_id': post['_id'], 'type': gallery_post_type})
+            gallery_filters = {'replied_to_post_id': post['_id'], 'type': gallery_post_type, 'status': post_status.OPEN}
+            posts = self.db.post.find(gallery_filters).sort('date', -1)
+
+            self.db.callback_data.update_one(
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
+                {'$set': {'gallery_filters': gallery_filters}},
+                upsert=True,
+            )
+
+            num_posts = self.db.post.count_documents(gallery_filters)
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
-            self.edit_gallery(call, next_post['_id'], is_gallery)
+            self.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.next_post, inline_keys.prev_post])
         def next_prev_callback(call):
@@ -440,13 +470,16 @@ class StackBot:
             post = self.user.post.as_dict()
             operator = '$gt' if call.data == inline_keys.next_post else '$lt'
             asc_desc = 1 if call.data == inline_keys.next_post else -1
-            posts = self.db.post.find(
-                {
-                    'replied_to_post_id': post.get('replied_to_post_id'),
-                    'type': post['type'],
-                    'date': {operator: post['date']}
-                }
-            ).sort('date', asc_desc)
+
+            # Get basic filters and gallery filters
+            filters = {'date': {operator: post['date']}, 'status': post_status.OPEN}
+            gallery_filters = self.db.callback_data.find_one(
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id}
+            )['gallery_filters']
+            filters.update(gallery_filters)
+
+            # Get relevant posts
+            posts = self.db.post.find(filters).sort('date', asc_desc)
 
             try:
                 next_post = next(posts)
@@ -455,7 +488,7 @@ class StackBot:
                 return
 
             is_gallery = True
-            self.edit_gallery(call, next_post['_id'], is_gallery)
+            self.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.first_page, inline_keys.last_page])
         def gallery_first_last_page(call):
@@ -479,7 +512,7 @@ class StackBot:
             """
             self.answer_callback_query(call.id, text=f':cross_mark: {call.data} not implemented.')
 
-    def send_gallery(self, chat_id, post_id, is_gallery=False):
+    def send_gallery(self, chat_id, post_id, is_gallery=False, gallery_filters=None):
         """
         Send gallery of posts starting with the post with post_id.
 
@@ -491,7 +524,7 @@ class StackBot:
         post_handler = Post(
             mongodb=self.user.db, stackbot=self.user.stackbot,
             post_id=post_id, chat_id=self.user.chat_id,
-            is_gallery=is_gallery
+            is_gallery=is_gallery, gallery_filters=gallery_filters
         )
         message = self.user.send_message(
             text=post_handler.get_text(),
@@ -509,7 +542,9 @@ class StackBot:
             upsert=True
         )
 
-    def edit_gallery(self, call, next_post_id, is_gallery=False):
+        return message
+
+    def edit_gallery(self, call, next_post_id, is_gallery=False, gallery_fiters=None):
         """
         Edit gallery of posts to show next or previous post. Next post to show is the one
         with post_id=next_post_id.
@@ -522,7 +557,7 @@ class StackBot:
         post_handler = Post(
             mongodb=self.user.db, stackbot=self.user.stackbot,
             post_id=next_post_id, chat_id=self.user.chat_id,
-            is_gallery=is_gallery
+            is_gallery=is_gallery, gallery_filters=gallery_fiters
         )
 
         self.edit_message(
@@ -641,6 +676,9 @@ class StackBot:
         """
         callback_data = self.db.callback_data.find_one({'chat_id': call.message.chat.id, 'message_id': call.message.message_id})
         return callback_data or {}
+
+    def get_gallery_filters(self, chat_id, message_id):
+        return self.db.callback_data.find_one({'chat_id': chat_id, 'message_id': message_id}).get('gallery_filters', {})
 
     def answer_callback_query(self, call_id, text, emojize=True):
         """

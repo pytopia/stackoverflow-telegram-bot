@@ -30,6 +30,7 @@ inline_keys = SimpleNamespace(
     accept=':check_mark_button: Accept',
     comment=':speech_balloon: Comment',
     delete=':wastebasket: Delete',
+    undelete=':recycling_symbol: Undelete',
     open=':green_circle: Open',
     close=':red_circle: Close',
     edit=':pencil: Edit',
@@ -67,6 +68,7 @@ post_status = SimpleNamespace(
     DRAFT=':white_circle: Draft',
     CLOSED=':red_circle: Closed',
     OPEN=':green_circle: Open',
+    DELETED=':wastebasket: Deleted',
 )
 
 post_type = SimpleNamespace(
@@ -89,6 +91,10 @@ EMOJI = {
     post_type.COMMENT: ':speech_balloon:',
 }
 
+OPEN_POST_ONLY_ACITONS = [
+    inline_keys.comment, inline_keys.edit, inline_keys.answer,
+]
+
 # Auto delete user and bot messages after a period of time
 DELETE_BOT_MESSAGES_AFTER_TIME = 10
 DELETE_USER_MESSAGES_AFTER_TIME = 10
@@ -98,7 +104,10 @@ DELETE_USER_MESSAGES_AFTER_TIME = 10
 HOW_TO_ASK_QUESTION_GUIDE = read_file(DATA_DIR / 'guide.html')
 WELCOME_MESSAGE = "Hey <strong>{first_name}</strong>!"
 CANCEL_MESSAGE = ':cross_mark: Canceled.'
-IDENTITY_TYPE_NOT_SET_WARNING = ':warning: <strong>{identity_type}</strong> is not set. Please set it in your settings or Telegram.'
+IDENTITY_TYPE_NOT_SET_WARNING = (
+    ':warning: <strong>{identity_type}</strong> is not set. '
+    'Please set it in your settings or Telegram.'
+)
 
 # Post Templates
 POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."

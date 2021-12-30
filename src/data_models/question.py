@@ -1,4 +1,4 @@
-from src.constants import inline_keys
+from src.constants import inline_keys, post_status
 from src.data_models.post import Post
 from src.utils.keyboard import create_keyboard
 from telebot import types
@@ -26,6 +26,10 @@ class Question(Post):
         keys, owner = super().get_actions_keys_and_owner()
         if owner != self.chat_id:
             keys.append(inline_keys.answer)
+
+        # if post is closed, remove open post only actions from keyboard
+        if self.post_status != post_status.OPEN:
+            keys = self.remove_closed_post_actions(keys)
 
         reply_markup = create_keyboard(*keys, is_inline=True)
         return reply_markup

@@ -16,7 +16,10 @@ class Post:
     """
     General class for all types of posts: Question, Answer, Comment, etc.
     """
-    def __init__(self, mongodb, stackbot, post_id: str = None, chat_id: str = None, is_gallery: bool = False):
+    def __init__(
+        self, mongodb, stackbot, post_id: str = None, chat_id: str = None,
+        is_gallery: bool = False, gallery_filters=None
+    ):
         self.db = mongodb
         self.stackbot = stackbot
 
@@ -24,6 +27,7 @@ class Post:
         self.chat_id = chat_id
 
         self.is_gallery = is_gallery
+        self.gallery_filters = gallery_filters
         self.emoji = constants.EMOJI.get(self.post_type)
         self.collection = self.db.post
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
@@ -39,6 +43,10 @@ class Post:
     def post_type(self) -> str:
         post_type = self.as_dict().get('type')
         return post_type or self.__class__.__name__.lower()
+
+    @property
+    def post_status(self) -> str:
+        return self.as_dict()['status']
 
     def update(self, message, replied_to_post_id: str = None) -> str:
         """
@@ -235,12 +243,9 @@ class Post:
             # Previous page key
 
             # Find current page number
-            conditions = {
-                'type': post['type'],
-            }
-            if post.get('replied_to_post_id'):
-                conditions.update({'replied_to_post_id': post['replied_to_post_id']})
+            conditions = self.gallery_filters.copy()
             num_posts = self.db.post.count_documents(conditions)
+
             conditions.update({'date': {'$lt': post['date']}})
             post_position = self.db.post.count_documents(conditions) + 1
 
@@ -318,7 +323,11 @@ class Post:
         owner_chat_id = self.owner_chat_id
 
         # every user can comment
-        keys = [inline_keys.back, inline_keys.comment]
+        keys = [inline_keys.back]
+
+        # comment is allowed only on open questions
+        if post['status'] == post_status.OPEN:
+            keys.append(inline_keys.comment)
 
         # non-owner users can follow/unfollow post
         if self.chat_id != owner_chat_id:
@@ -329,29 +338,46 @@ class Post:
 
         # post owners can edit, delete, open/close post.
         if self.chat_id == owner_chat_id:
-            current_status = post['status']
-            if current_status == post_status.OPEN:
-                keys.append(inline_keys.close)
-            elif current_status:
-                keys.append(inline_keys.open)
-
             keys.append(inline_keys.edit)
+
+            current_status = post['status']
+            if current_status == post_status.DELETED:
+                keys.append(inline_keys.undelete)
+            else:
+                keys.append(inline_keys.delete)
+                if current_status == post_status.OPEN:
+                    keys.append(inline_keys.close)
+                elif current_status == post_status.CLOSED:
+                    keys.append(inline_keys.open)
 
         return keys, owner_chat_id
 
-    def open_close(self):
+    def remove_closed_post_actions(self, keys) -> List:
+        """
+        Remove actions keys if post is closed.
+
+        :param keys: List of actions keys
+        :return: List of actions keys
+        """
+        new_keys = []
+        for key in keys:
+            if key in constants.OPEN_POST_ONLY_ACITONS:
+                continue
+            new_keys.append(key)
+
+        return new_keys
+
+    def toggle_field_values(self, field: str, values: List):
         """
         Close/Open post.
         Nobody can comment/answer to a closed post.
         """
-        current_status = self.as_dict()['status']
-        new_status = post_status.OPEN
-        if current_status == post_status.OPEN:
-            new_status = post_status.CLOSED
+        current_field_value = self.as_dict()[field]
+        new_index = values.index(current_field_value) - 1
 
         self.collection.update_one(
             {'_id': ObjectId(self.post_id)},
-            {'$set': {'status': new_status}}
+            {'$set': {field: values[new_index]}}
         )
 
     def get_post_owner_identity(self) -> str:
