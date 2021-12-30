@@ -4,9 +4,6 @@ import emoji
 from loguru import logger
 from telebot import custom_filters
 
-from handlers.command_handlers import register_command_handlers
-from handlers.message_handlers import register_message_handlers
-from handlers.callback_handlers import register_callback_handlers
 from src import constants
 from src.bot import bot
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
@@ -14,6 +11,7 @@ from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
 from src.data_models.post import Post
 from src.db import db
 from src.filters import IsAdmin
+from src.handlers import CallbackHandler, CommandHandler, MessageHandler
 from src.utils.keyboard import create_keyboard
 
 
@@ -42,9 +40,14 @@ class StackBot:
         self.bot.infinity_polling()
 
     def register_handlers(self):
-        register_command_handlers(self)
-        register_message_handlers(self)
-        register_callback_handlers(self)
+        command_handlers = CommandHandler(stack=self)
+        command_handlers.register()
+
+        message_handlers = MessageHandler(stack=self)
+        message_handlers.register()
+
+        callback_handlers = CallbackHandler(stack=self)
+        callback_handlers.register()
 
     def send_gallery(self, chat_id, post_id, is_gallery=False, gallery_filters=None):
         """
