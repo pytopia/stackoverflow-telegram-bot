@@ -40,12 +40,18 @@ class StackBot:
         self.bot.infinity_polling()
 
     def register_handlers(self):
+        """
+        Register all handlers.
+        """
+        # Command handlers for commands such as /start /help /settings etc.
         command_handlers = CommandHandler(stack=self)
         command_handlers.register()
 
+        # Message handlers for text messages
         message_handlers = MessageHandler(stack=self)
         message_handlers.register()
 
+        # Callback handlers for inline buttons
         callback_handlers = CallbackHandler(stack=self)
         callback_handlers.register()
 
