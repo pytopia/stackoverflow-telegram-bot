@@ -133,8 +133,8 @@ class MessageHandler:
             )
 
             self.stack.db.callback_data.update_one(
-                {'chat_id': gallery_message.chat.id, 'message_id': gallery_message.message_id},
-                {'$set': {'gallery_filters': gallery_filters}},
+                {'chat_id': gallery_message.chat.id, 'message_id': gallery_message.message_id, 'post_id': next_post['_id']},
+                {'$set': {'gallery_filters': gallery_filters, 'is_gallery': is_gallery, 'preview': False}},
                 upsert=True,
             )
 
@@ -149,6 +149,7 @@ class MessageHandler:
             3. Send message preview to the user.
             4. Delete previous bot messages.
             """
+            print(message.text)
             if self.stack.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
                 return
 
@@ -187,10 +188,13 @@ class MessageHandler:
         self.stack.user.clean_preview(message.message_id)
 
         # we should store the callback data for the new message
-        self.stack.db.callback_data.update_one(
-            {'chat_id': chat_id, 'message_id': message.message_id},
-            {'$set': {'post_id': post_id, 'preview': False, 'is_gallery': is_gallery}},
-            upsert=True
-        )
+        self.stack.db.callback_data.insert_one({
+            'chat_id': chat_id,
+            'message_id': message.message_id,
+            'post_id': post_id,
+            'preview': False,
+            'is_gallery': is_gallery,
+            'gallery_filtes': gallery_filters,
+        })
 
         return message

@@ -125,7 +125,8 @@ SEND_POST_TO_ALL_MESSAGE = (
     '\n'
     '{post_text}\n'
     '\n\n'
-    ':calendar: <code>{date}</code>'
+    ':calendar: <code>{date}</code>\n'
+    ':ID_button: <code>{post_id}</code>'
 )
 POST_START_MESSAGE = (
     ":pencil: <strong>{first_name}</strong>, send your <strong>{post_type}</strong> here.\n\n"

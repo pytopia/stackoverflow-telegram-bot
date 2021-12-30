@@ -125,6 +125,7 @@ class Post:
             'message_id': sent_message.message_id,
             'preview': preview,
             'is_gallery': self.is_gallery,
+            'gallery_filters': self.gallery_filters,
         })
 
         return sent_message
@@ -183,9 +184,8 @@ class Post:
             else:
                 from_user = self.get_post_owner_identity()
                 post_text = constants.SEND_POST_TO_ALL_MESSAGE.format(
-                    from_user=from_user, post_text=post_text, post_status=post['status'],
-                    post_type=post_type, emoji=self.emoji,
-                    date=human_readable_unix_time(post['date']),
+                    from_user=from_user, post_text=post_text, post_status=post['status'], post_type=post_type,
+                    emoji=self.emoji, date=human_readable_unix_time(post['date']), post_id=post['_id'],
                 )
 
         return post_text

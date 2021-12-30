@@ -8,6 +8,7 @@ from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
 from src.data_models.post import Post
 from src.user import User
 from src.utils.keyboard import create_keyboard
+from bson.objectid import ObjectId
 
 
 class CallbackHandler:
@@ -233,20 +234,18 @@ class CallbackHandler:
             post = self.stack.user.post.as_dict()
             original_post_id = self.stack.db.post.find_one({'_id': post['replied_to_post_id']})['_id']
 
+            original_post_info = self.stack.db.callback_data.find_one(
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': original_post_id}
+            )
             post_handler = Post(
                 mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
                 post_id=original_post_id, chat_id=self.stack.user.chat_id,
+                gallery_filters=original_post_info['gallery_filters'], is_gallery=original_post_info['is_gallery']
             )
             self.stack.edit_message(
                 call.message.chat.id, call.message.message_id,
                 text=post_handler.get_text(),
                 reply_markup=post_handler.get_keyboard()
-            )
-
-            # we should change the post_id for the buttons
-            self.stack.db.callback_data.update_one(
-                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
-                {'$set': {'post_id': original_post_id, 'preview': False, 'is_gallery': False}},
             )
 
         @bot.callback_query_handler(
@@ -263,17 +262,16 @@ class CallbackHandler:
             gallery_filters = {'replied_to_post_id': post['_id'], 'type': gallery_post_type, 'status': post_status.OPEN}
             posts = self.stack.db.post.find(gallery_filters).sort('date', -1)
 
-            self.stack.db.callback_data.update_one(
-                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
-                {'$set': {'gallery_filters': gallery_filters}},
-                upsert=True,
-            )
-
             num_posts = self.stack.db.post.count_documents(gallery_filters)
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
             self.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
+            self.stack.db.callback_data.update_one(
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': next_post['_id']},
+                {'$set': {'gallery_filters': gallery_filters, 'is_gallery': is_gallery, 'preview': False}},
+                upsert=True,
+            )
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.next_post, inline_keys.prev_post])
         def next_prev_callback(call):
@@ -286,7 +284,7 @@ class CallbackHandler:
             # Get basic filters and gallery filters
             filters = {'date': {operator: post['date']}, 'status': post_status.OPEN}
             gallery_filters = self.stack.db.callback_data.find_one(
-                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id}
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': post['_id']}
             )['gallery_filters']
             filters.update(gallery_filters)
 
@@ -375,8 +373,9 @@ class CallbackHandler:
 
         We also store post_type in the database to use the right handler in user object (Question, Answer, Comment).
         """
+        post_id = self.retrive_post_id_from_message_text(call.message.text)
         callback_data = self.stack.db.callback_data.find_one(
-            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id}
+            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': ObjectId(post_id)}
         )
         return callback_data or {}
 
@@ -410,6 +409,18 @@ class CallbackHandler:
 
         # we should update the post_id for the buttons cause it is a new post
         self.stack.db.callback_data.update_one(
-            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id},
-            {'$set': {'post_id': next_post_id, 'preview': False, 'is_gallery': is_gallery}},
+            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': next_post_id},
+            {'$set': {'preview': False, 'is_gallery': is_gallery, 'gallery_filters': gallery_fiters}},
+            upsert=True,
         )
+
+    def retrive_post_id_from_message_text(self, text):
+        """
+        Get post_id from message text.
+        """
+        text = emoji.demojize(text)
+        last_line = text.split('\n')[-1]
+        pattern = '^:ID_button: (?P<id>[A-Za-z0-9]+)$'
+        match = re.match(pattern, last_line)
+        post_id = match.group('id') if match else None
+        return post_id
