@@ -6,6 +6,7 @@ from src.constants import (DELETE_USER_MESSAGES_AFTER_TIME, keyboards, keys,
 from src.data_models.post import Post
 from src.handlers.base import BaseHandler
 from src.user import User
+from loguru import logger
 
 
 class MessageHandler(BaseHandler):
@@ -153,10 +154,11 @@ class MessageHandler(BaseHandler):
         try:
             next_post_id = next(posts)['_id']
         except StopIteration:
-            self.user.send_message(constants.NO_MORE_POSTS_MESSAGE)
+            text = constants.GALLERY_NO_POSTS_MESSAGE.format(post_type=gallery_filters.get('type', 'post'))
+            self.user.send_message(text)
+            return
 
         is_gallery = True if num_posts > 1 else False
-
         post_handler = Post(
             mongodb=self.user.db, stackbot=self.stack,
             post_id=next_post_id, chat_id=self.user.chat_id,
@@ -172,13 +174,13 @@ class MessageHandler(BaseHandler):
         self.user.clean_preview(message.message_id)
 
         # we should store the callback data for the new message
-        self.db.callback_data.insert_one({
+        output = self.db.callback_data.insert_one({
             'chat_id': self.user.chat_id,
             'message_id': message.message_id,
             'post_id': next_post_id,
             'preview': False,
             'is_gallery': is_gallery,
-            'gallery_filtes': gallery_filters,
+            'gallery_filters': gallery_filters,
         })
-
+        logger.info(f'INSERT: Callback data for message {message.message_id}: {next_post_id}')
         return message

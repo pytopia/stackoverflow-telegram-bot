@@ -2,6 +2,7 @@ import re
 
 import emoji
 from bson.objectid import ObjectId
+from loguru import logger
 from src import constants
 from src.bot import bot
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
@@ -36,14 +37,13 @@ class CallbackHandler(BaseHandler):
             if not self.user.exists():
                 self.user.register(call.message)
 
-            self.user.post.is_gallery = call_info.get('is_gallery', False)
-
             # Demojize text
             call.data = emoji.demojize(call.data)
             call.message.text = emoji.demojize(call.message.text)
 
             # update post info
-            gallery_filters = self.get_gallery_filters(call.message.chat.id, call.message.message_id)
+            gallery_filters = self.get_gallery_filters(call.message.chat.id, call.message.message_id, self.user.post.post_id)
+            self.user.post.is_gallery = call_info.get('is_gallery', False)
             self.user.post.gallery_filters = gallery_filters
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
@@ -279,9 +279,9 @@ class CallbackHandler(BaseHandler):
             asc_desc = 1 if call.data == inline_keys.next_post else -1
 
             # Get basic filters and gallery filters
-            filters = {'date': {operator: post['date']}, 'status': post_status.OPEN}
+            filters = {'date': {operator: post['date']}}
             gallery_filters = self.db.callback_data.find_one(
-                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': post['_id']}
+                {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': ObjectId(post['_id'])}
             )['gallery_filters']
             filters.update(gallery_filters)
 
@@ -291,7 +291,10 @@ class CallbackHandler(BaseHandler):
             try:
                 next_post = next(posts)
             except StopIteration:
-                self.answer_callback_query(call.id, ':red_exclamation_mark: No more posts!')
+                self.answer_callback_query(
+                    call.id,
+                    constants.GALLERY_NO_POSTS_MESSAGE.format(post_type=gallery_filters.get('type', 'post'))
+                )
                 return
 
             is_gallery = True
@@ -302,7 +305,7 @@ class CallbackHandler(BaseHandler):
             """
             First and last page of a gallery button.
             """
-            self.answer_callback_query(call.id, text=':red_exclamation_mark: No more posts!')
+            self.answer_callback_query(call.id, text=constants.GALLERY_NO_POSTS_MESSAGE.format(post_type='post'))
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
@@ -376,10 +379,8 @@ class CallbackHandler(BaseHandler):
         )
         return callback_data or {}
 
-    def get_gallery_filters(self, chat_id, message_id):
-        result = self.db.callback_data.find_one({'chat_id': chat_id, 'message_id': message_id})
-        if not result:
-            return {}
+    def get_gallery_filters(self, chat_id, message_id, post_id):
+        result = self.db.callback_data.find_one({'chat_id': chat_id, 'message_id': message_id, 'post_id': post_id}) or {}
         return result.get('gallery_filters', {})
 
     def edit_gallery(self, call, next_post_id, is_gallery=False, gallery_fiters=None):
@@ -410,6 +411,8 @@ class CallbackHandler(BaseHandler):
             {'$set': {'preview': False, 'is_gallery': is_gallery, 'gallery_filters': gallery_fiters}},
             upsert=True,
         )
+
+        logger.info(f'UPDATE: Gallery filters: {gallery_fiters}')
 
     def retrive_post_id_from_message_text(self, text):
         """

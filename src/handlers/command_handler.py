@@ -1,3 +1,4 @@
+from src.constants import WELCOME_MESSAGE, keyboards
 from src.handlers.base import BaseHandler
 from src.user import User
 
@@ -27,3 +28,8 @@ class CommandHandler(BaseHandler):
             3. Reset user data (settings, state, track data)
             """
             self.user.reset()
+            self.user.send_message(
+                WELCOME_MESSAGE.format(first_name=self.first_name),
+                reply_markup=keyboards.main,
+                delete_after=False
+            )

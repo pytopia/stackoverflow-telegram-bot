@@ -152,4 +152,4 @@ SETTINGS_START_MESSAGE = (
 )
 
 # Gallery Templates
-GALLERY_NO_POSTS_MESSAGE = f':warning: No {post_type} found!'
+GALLERY_NO_POSTS_MESSAGE = ':red_exclamation_mark: No {post_type} found.'

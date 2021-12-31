@@ -164,14 +164,14 @@ class User:
         self.db.post.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
 
     def register(self, message):
+        if self.exists():
+            return
+
         self.send_message(
             constants.WELCOME_MESSAGE.format(first_name=self.first_name),
             reply_markup=keyboards.main,
             delete_after=False
         )
-        if self.exists():
-            return
-
         self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
         self.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
         self.reset()
