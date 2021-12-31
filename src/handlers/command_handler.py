@@ -1,4 +1,3 @@
-from src.constants import WELCOME_MESSAGE, keyboards
 from src.handlers.base import BaseHandler
 from src.user import User
 

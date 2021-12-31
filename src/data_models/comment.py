@@ -1,8 +1,8 @@
 from bson.objectid import ObjectId
+from src.constants import post_status
 from src.data_models.post import Post
 from src.utils.keyboard import create_keyboard
 from telebot import types
-from src.constants import post_status
 
 
 class Comment(Post):

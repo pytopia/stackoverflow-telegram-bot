@@ -264,6 +264,9 @@ class Post:
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
 
+    def get_text_and_keyboard(self):
+        return self.get_text(), self.get_keyboard()
+
     def get_followers(self) -> list:
         """
         Get all followers of the current post.

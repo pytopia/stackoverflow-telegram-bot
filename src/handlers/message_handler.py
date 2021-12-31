@@ -1,12 +1,10 @@
 import emoji
 from src import constants
 from src.bot import bot
-from src.constants import (DELETE_USER_MESSAGES_AFTER_TIME, keyboards, keys,
-                           post_status, post_type, states)
+from src.constants import keyboards, keys, post_status, post_type, states
 from src.data_models.post import Post
 from src.handlers.base import BaseHandler
 from src.user import User
-from loguru import logger
 
 
 class MessageHandler(BaseHandler):
@@ -169,18 +167,17 @@ class MessageHandler(BaseHandler):
         num_posts = self.db.post.count_documents(gallery_filters)
         is_gallery = True if num_posts > 1 else False
 
-        self.stack.user.post.post_id = next_post_id
-        self.stack.user.post.is_gallery = is_gallery
-        self.stack.user.post.gallery_filters = gallery_filters
-
-        post_handler = Post(
+        self.stack.user.post = Post(
             mongodb=self.stack.user.db, stackbot=self.stack,
             post_id=next_post_id, chat_id=self.stack.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_filters
         )
+
+        # Send the gallery message
+        post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
         message = self.stack.user.send_message(
-            text=post_handler.get_text(),
-            reply_markup=post_handler.get_keyboard(),
+            text=post_text,
+            reply_markup=post_keyboard,
             delete_after=False,
         )
 

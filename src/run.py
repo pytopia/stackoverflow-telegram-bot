@@ -164,17 +164,17 @@ class StackBot:
     def update_callback_data(self, message_id, reply_markup):
         if reply_markup and isinstance(reply_markup, types.InlineKeyboardMarkup):
             logger.info(f'Updating callback data for message {message_id}')
-            post = self.user.post
+
             self.db.callback_data.update_one(
                 {
                     'chat_id': self.user.chat_id,
                     'message_id': message_id,
-                    'post_id': post.post_id,
+                    'post_id': self.user.post.post_id,
                 },
                 {
                     '$set': {
-                        'is_gallery': post.is_gallery,
-                        'gallery_filters': post.gallery_filters,
+                        'is_gallery': self.user.post.is_gallery,
+                        'gallery_filters': self.user.post.gallery_filters,
                     }
                 },
                 upsert=True

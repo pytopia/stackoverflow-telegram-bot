@@ -5,8 +5,8 @@ from bson.objectid import ObjectId
 from loguru import logger
 from src import constants
 from src.bot import bot
-from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
-                           keyboards, post_status, post_type, states)
+from src.constants import (inline_keys, keyboards, post_status, post_type,
+                           states)
 from src.data_models.post import Post
 from src.handlers.base import BaseHandler
 from src.user import User
@@ -84,7 +84,7 @@ class CallbackHandler(BaseHandler):
             self.answer_callback_query(call.id, text=call.data)
 
             self.stack.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
-            self.stack.user.track(replied_to_post_id=self.stack.user.post_id)
+            self.stack.user.track(replied_to_post_id=self.stack.user.post.post_id)
 
             current_post_type = post_type.COMMENT if call.data == inline_keys.comment else post_type.ANSWER
             self.stack.user.send_message(
@@ -107,7 +107,7 @@ class CallbackHandler(BaseHandler):
             self.answer_callback_query(call.id, text=call.data)
 
             # main menu keyboard
-            if self.stack.user.post_id is not None:
+            if self.stack.user.post.post_id is not None:
                 # back is called on a post (question, answer or comment
                 self.stack.user.edit_message(call.message.message_id, reply_markup=self.stack.user.post.get_keyboard())
             else:
@@ -233,19 +233,19 @@ class CallbackHandler(BaseHandler):
 
             is_gallery = original_post_info.get('is_gallery')
             gallery_filters = original_post_info.get('gallery_filters')
-            self.stack.user.post.post_id = original_post_id
-            self.stack.user.post.is_gallery = is_gallery
-            self.stack.user.post.gallery_filters = gallery_filters
 
-            post_handler = Post(
+            self.stack.user.post = Post(
                 mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
                 post_id=original_post_id, chat_id=self.stack.user.chat_id,
                 gallery_filters=gallery_filters, is_gallery=is_gallery
             )
+
+            # Edit message with original post keyboard and text
+            post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
             self.stack.user.edit_message(
                 call.message.message_id,
-                text=post_handler.get_text(),
-                reply_markup=post_handler.get_keyboard()
+                text=post_text,
+                reply_markup=post_keyboard,
             )
 
         @bot.callback_query_handler(
@@ -361,20 +361,18 @@ class CallbackHandler(BaseHandler):
         :param is_gallery: If True, send gallery of posts. If False, send single post.
             Next and previous buttions will be added to the message if is_gallery is True.
         """
-        post_handler = Post(
+        self.stack.user.post = Post(
             mongodb=self.stack.user.db, stackbot=self.stack,
             post_id=next_post_id, chat_id=self.stack.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_fiters
         )
 
-        self.stack.user.post.post_id = next_post_id
-        self.stack.user.post.is_gallery = is_gallery
-        self.stack.user.post.gallery_filters = gallery_fiters
-
+        # Edit message with new gallery
+        post_text, post_keyboard = self.user.post.get_post_text_and_keyboard()
         self.stack.user.edit_message(
             call.message.message_id,
-            text=post_handler.get_text(),
-            reply_markup=post_handler.get_keyboard()
+            text=post_text,
+            reply_markup=post_keyboard
         )
 
         logger.info(f'UPDATE: Gallery filters: {gallery_fiters}')
