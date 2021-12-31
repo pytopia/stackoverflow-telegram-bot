@@ -13,7 +13,7 @@ class CommandHandler(BaseHandler):
             1. Get user object (also registers user if not exists)
             """
             # Getting updated user before message reaches any other handler
-            self.user = User(
+            self.stack.user = User(
                 chat_id=message.chat.id, first_name=message.chat.first_name,
                 mongodb=self.db, stackbot=self.stack,
             )
@@ -27,9 +27,5 @@ class CommandHandler(BaseHandler):
             2. Insert (if user is new, or update) user in database.
             3. Reset user data (settings, state, track data)
             """
-            self.user.reset()
-            self.user.send_message(
-                WELCOME_MESSAGE.format(first_name=self.user.first_name),
-                reply_markup=keyboards.main,
-                delete_after=False
-            )
+            self.stack.user.reset()
+            self.stack.user.register(message)

@@ -98,6 +98,7 @@ OPEN_POST_ONLY_ACITONS = [
 # Auto delete user and bot messages after a period of time
 DELETE_BOT_MESSAGES_AFTER_TIME = 10
 DELETE_USER_MESSAGES_AFTER_TIME = 10
+DELETE_FILE_MESSAGES_AFTER_TIME = 1 * 60 * 60
 
 # Constant Text Messages
 # General Templates

@@ -38,6 +38,7 @@ class User:
         self.question = Question(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
         self.answer = Answer(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
         self.comment = Comment(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
+        self._post = None
 
     @property
     def user(self):
@@ -100,7 +101,12 @@ class User:
         else:
             post_handler = self.question
 
-        return post_handler
+        self._post = post_handler
+        return self._post
+
+    @post.setter
+    def post(self, post_handler):
+        self._post = post_handler
 
     def send_message(
         self, text: str, reply_markup: Union[types.InlineKeyboardMarkup, types.ReplyKeyboardMarkup] = None,
@@ -119,6 +125,12 @@ class User:
         )
 
         return message
+
+    def edit_message(self, message_id, text=None, reply_markup=None, emojize: bool = True):
+        self.stackbot.edit_message(
+            chat_id=self.chat_id, message_id=message_id, text=text,
+            reply_markup=reply_markup, emojize=emojize
+        )
 
     def delete_message(self, message_id: str):
         """
@@ -167,6 +179,7 @@ class User:
         if self.exists():
             return
 
+        logger.info('Registering user...')
         self.send_message(
             constants.WELCOME_MESSAGE.format(first_name=self.first_name),
             reply_markup=keyboards.main,

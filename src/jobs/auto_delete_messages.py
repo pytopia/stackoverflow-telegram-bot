@@ -46,6 +46,7 @@ while True:
             # Delete message
             stackbot.delete_message(chat_id=chat_id, message_id=message_id)
             db.auto_delete.delete_one({'_id': doc['_id']})
+            db.callback_data.delete_many({'chat_id': chat_id, 'message_id': message_id})
             chat_ids.add(chat_id)
             logger.info(f'Deleted message {message_id} from chat {chat_id}.')
 

@@ -3,6 +3,7 @@ import json
 from typing import List, Tuple
 
 from bson.objectid import ObjectId
+from loguru import logger
 from src import constants
 from src.constants import (SUPPORTED_CONTENT_TYPES, inline_keys, post_status,
                            post_type)
@@ -34,11 +35,16 @@ class Post:
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
 
     def as_dict(self) -> dict:
-        return self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
+        logger.info(f'Getting post with id {self.post_id}')
+        if not self.post_id:
+            return {}
+        post = self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
+        return post
 
     @property
     def owner_chat_id(self) -> str:
-        return self.as_dict()['chat']['id']
+        # logger.info(f'Getting owner chat id of post with id {self.post_id}')
+        return self.as_dict().get('chat', {}).get('id')
 
     @property
     def post_type(self) -> str:
@@ -47,7 +53,7 @@ class Post:
 
     @property
     def post_status(self) -> str:
-        return self.as_dict()['status']
+        return self.as_dict().get('status')
 
     def update(self, message, replied_to_post_id: str = None) -> str:
         """
@@ -119,15 +125,6 @@ class Post:
             reply_markup=post_keyboard,
             delete_after=False
         )
-
-        self.db.callback_data.insert_one({
-            'post_id': self.post_id,
-            'chat_id': chat_id,
-            'message_id': sent_message.message_id,
-            'preview': preview,
-            'is_gallery': self.is_gallery,
-            'gallery_filters': self.gallery_filters,
-        })
 
         return sent_message
 
@@ -320,7 +317,7 @@ class Post:
         :return: List of actions keys and owner of the post.
         """
         post = self.as_dict()
-        owner_chat_id = self.owner_chat_id
+        owner_chat_id = post['chat']['id']
 
         # every user can comment
         keys = [inline_keys.back]

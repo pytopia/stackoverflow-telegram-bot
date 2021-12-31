@@ -23,20 +23,17 @@ class MessageHandler(BaseHandler):
                 This is managed a cron job that deletes old messages periodically.
             """
             # Getting updated user before message reaches any other handler
-            self.user = User(
+            self.stack.user = User(
                 chat_id=message.chat.id, first_name=message.chat.first_name,
                 mongodb=self.db, stackbot=self.stack,
             )
 
             # register if not exits already
-            self.user.register(message)
+            self.stack.user.register(message)
 
             # Demojize text
             if message.content_type == 'text':
                 message.text = emoji.demojize(message.text)
-
-            # Auto delete user message to keep the bot clean
-            self.stack.queue_message_deletion(message.chat.id, message.message_id, DELETE_USER_MESSAGES_AFTER_TIME)
 
         @self.stack.bot.message_handler(text=[keys.ask_question])
         def ask_question(message):
@@ -47,13 +44,13 @@ class MessageHandler(BaseHandler):
             2. Send how to ask a question guide.
             3. Send start typing message.
             """
-            if not self.user.state == states.MAIN:
+            if not self.stack.user.state == states.MAIN:
                 return
 
-            self.user.update_state(states.ASK_QUESTION)
-            self.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.send_post)
-            self.user.send_message(constants.POST_START_MESSAGE.format(
-                first_name=self.user.first_name, post_type='question'
+            self.stack.user.update_state(states.ASK_QUESTION)
+            self.stack.user.send_message(constants.HOW_TO_ASK_QUESTION_GUIDE, reply_markup=keyboards.send_post)
+            self.stack.user.send_message(constants.POST_START_MESSAGE.format(
+                first_name=self.stack.user.first_name, post_type='question'
             ))
 
         @self.stack.bot.message_handler(text=[keys.cancel])
@@ -65,9 +62,9 @@ class MessageHandler(BaseHandler):
             2. Send cancel message.
             3. Delete previous bot messages.
             """
-            self.user.clean_preview()
-            self.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
-            self.user.reset()
+            self.stack.user.clean_preview()
+            self.stack.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
+            self.stack.user.reset()
 
         @self.stack.bot.message_handler(text=[keys.send_post])
         def send_post(message):
@@ -80,30 +77,30 @@ class MessageHandler(BaseHandler):
             4. Reset user state and data.
             5. Delete previous bot messages.
             """
-            post_id = self.user.post.submit()
+            post_id = self.stack.user.post.submit()
             if not post_id:
-                self.user.send_message(constants.EMPTY_POST_MESSAGE)
+                self.stack.user.send_message(constants.EMPTY_POST_MESSAGE)
                 return
 
-            self.user.post.post_id = post_id
-            self.user.post.send()
-            self.user.send_message(
+            self.stack.user.post.post_id = post_id
+            self.stack.user.post.send()
+            self.stack.user.send_message(
                 text=constants.POST_OPEN_SUCCESS_MESSAGE.format(
-                    post_type=self.user.post.post_type.title(),
+                    post_type=self.stack.user.post.post_type.title(),
                 ),
                 reply_markup=keyboards.main
             )
 
             # Reset user state and data
-            self.user.clean_preview()
-            self.user.reset()
+            self.stack.user.clean_preview()
+            self.stack.user.reset()
 
         @self.stack.bot.message_handler(text=[keys.settings])
         def settings(message):
             """
             User wants to change settings.
             """
-            self.user.send_message(self.get_settings_text(), self.get_settings_keyboard())
+            self.stack.user.send_message(self.get_settings_text(), self.get_settings_keyboard())
 
         @self.stack.bot.message_handler(text=[keys.search_questions])
         def search_questions(message):
@@ -125,26 +122,25 @@ class MessageHandler(BaseHandler):
             3. Send message preview to the user.
             4. Delete previous post preview.
             """
-            print(message.text)
-            if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
+            if self.stack.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
                 return
 
             # Not all types of post support all content types. For example comments do not support texts.
-            supported_contents = self.user.post.supported_content_types
+            supported_contents = self.stack.user.post.supported_content_types
             if message.content_type not in supported_contents:
-                self.user.send_message(
+                self.stack.user.send_message(
                     constants.UNSUPPORTED_CONTENT_TYPE_MESSAGE.format(supported_contents=' '.join(supported_contents))
                 )
                 return
 
             # Update the post content with the new message content
-            self.user.post.update(message, replied_to_post_id=self.user.tracker.get('replied_to_post_id'))
+            self.stack.user.post.update(message, replied_to_post_id=self.stack.user.tracker.get('replied_to_post_id'))
 
             # Send message preview to the user
-            new_preview_message = self.user.post.send_to_one(chat_id=message.chat.id, preview=True)
+            new_preview_message = self.stack.user.post.send_to_one(chat_id=message.chat.id, preview=True)
 
             # Delete previous preview message and set the new one
-            self.user.clean_preview(new_preview_message.message_id)
+            self.stack.user.clean_preview(new_preview_message.message_id)
 
     def send_gallery(self, gallery_filters=None):
         """
@@ -166,34 +162,28 @@ class MessageHandler(BaseHandler):
             next_post_id = next(posts)['_id']
         except StopIteration:
             text = constants.GALLERY_NO_POSTS_MESSAGE.format(post_type=gallery_filters.get('type', 'post'))
-            self.user.send_message(text)
+            self.stack.user.send_message(text)
             return
 
         # Send the posts gallery
         num_posts = self.db.post.count_documents(gallery_filters)
         is_gallery = True if num_posts > 1 else False
+
+        self.stack.user.post.post_id = next_post_id
+        self.stack.user.post.is_gallery = is_gallery
+        self.stack.user.post.gallery_filters = gallery_filters
+
         post_handler = Post(
-            mongodb=self.user.db, stackbot=self.stack,
-            post_id=next_post_id, chat_id=self.user.chat_id,
+            mongodb=self.stack.user.db, stackbot=self.stack,
+            post_id=next_post_id, chat_id=self.stack.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_filters
         )
-        message = self.user.send_message(
+        message = self.stack.user.send_message(
             text=post_handler.get_text(),
             reply_markup=post_handler.get_keyboard(),
             delete_after=False,
         )
 
-        # we should store the callback data for the new message
-        self.db.callback_data.insert_one({
-            'chat_id': self.user.chat_id,
-            'message_id': message.message_id,
-            'post_id': next_post_id,
-            'preview': False,
-            'is_gallery': is_gallery,
-            'gallery_filters': gallery_filters,
-        })
-        logger.info(f'INSERT: Callback data for message {message.message_id}: {next_post_id}')
-
         # if user asks for this gallery again, we delete the old one to keep the history clean.
-        self.user.clean_preview(message.message_id)
+        self.stack.user.clean_preview(message.message_id)
         return message
