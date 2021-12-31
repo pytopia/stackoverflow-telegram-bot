@@ -1,8 +1,7 @@
+from src.handlers.base import BaseHandler
 
-class CommandHandler:
-    def __init__(self, stack):
-        self.stack = stack
 
+class CommandHandler(BaseHandler):
     def register(self):
         @self.stack.bot.message_handler(commands=['start'])
         def start(message):
@@ -13,4 +12,4 @@ class CommandHandler:
             2. Insert (if user is new, or update) user in database.
             3. Reset user data (settings, state, track data)
             """
-            self.stack.user.register(message)
+            self.user.register(message)

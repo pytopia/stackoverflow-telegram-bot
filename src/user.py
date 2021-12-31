@@ -150,6 +150,9 @@ class User:
         return True
 
     def register(self, message):
+        if self.exists():
+            return
+
         self.send_message(
             constants.WELCOME_MESSAGE.format(first_name=self.first_name),
             reply_markup=keyboards.main,

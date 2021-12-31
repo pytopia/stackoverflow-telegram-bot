@@ -1,20 +1,18 @@
 import re
 
 import emoji
+from bson.objectid import ObjectId
 from src import constants
 from src.bot import bot
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
                            keyboards, post_status, post_type, states)
 from src.data_models.post import Post
+from src.handlers.base import BaseHandler
 from src.user import User
 from src.utils.keyboard import create_keyboard
-from bson.objectid import ObjectId
 
 
-class CallbackHandler:
-    def __init__(self, stack):
-        self.stack = stack
-
+class CallbackHandler(BaseHandler):
     def register(self):
         @self.stack.bot.middleware_handler(update_types=['callback_query'])
         def init_callback_handler(bot_instance, call):
@@ -29,17 +27,16 @@ class CallbackHandler:
             # we get the post type to know what kind of post we are dealing with.
             call_info = self.get_call_info(call)
             post_id = call_info.get('post_id')
-            self.stack.user = User(
+            self.user = User(
                 chat_id=call.message.chat.id, first_name=call.message.chat.first_name,
-                mongodb=self.stack.db, stackbot=self.stack,
-                post_id=post_id
+                mongodb=self.db, stackbot=self.stack, post_id=post_id
             )
 
             # register user if not exists
-            if not self.stack.user.exists():
-                self.stack.user.register(call.message)
+            if not self.user.exists():
+                self.user.register(call.message)
 
-            self.stack.user.post.is_gallery = call_info.get('is_gallery', False)
+            self.user.post.is_gallery = call_info.get('is_gallery', False)
 
             # Demojize text
             call.data = emoji.demojize(call.data)
@@ -47,7 +44,7 @@ class CallbackHandler:
 
             # update post info
             gallery_filters = self.get_gallery_filters(call.message.chat.id, call.message.message_id)
-            self.stack.user.post.gallery_filters = gallery_filters
+            self.user.post.gallery_filters = gallery_filters
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -61,10 +58,10 @@ class CallbackHandler:
             self.answer_callback_query(call.id, text=call.data)
 
             # actions keyboard (also update text)
-            reply_markup = self.stack.user.post.get_actions_keyboard()
+            reply_markup = self.user.post.get_actions_keyboard()
 
             # TODO: If in future, we update the posts in a queue structure, we can remove this
-            text = self.stack.user.post.get_text()
+            text = self.user.post.get_text()
 
             self.stack.edit_message(call.message.chat.id, call.message.message_id, text=text, reply_markup=reply_markup)
 
@@ -81,13 +78,13 @@ class CallbackHandler:
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            self.stack.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
-            self.stack.user.track(replied_to_post_id=self.stack.user.post_id)
+            self.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
+            self.user.track(replied_to_post_id=self.user.post_id)
 
             current_post_type = post_type.COMMENT if call.data == inline_keys.comment else post_type.ANSWER
-            self.stack.user.send_message(
+            self.user.send_message(
                 constants.POST_START_MESSAGE.format(
-                    first_name=self.stack.user.first_name,
+                    first_name=self.user.first_name,
                     post_type=current_post_type
                 ),
                 reply_markup=keyboards.send_post,
@@ -105,11 +102,11 @@ class CallbackHandler:
             self.answer_callback_query(call.id, text=call.data)
 
             # main menu keyboard
-            if self.stack.user.post_id is not None:
+            if self.user.post_id is not None:
                 # back is called on a post (question, answer or comment
                 self.stack.edit_message(
                     call.message.chat.id, call.message.message_id,
-                    reply_markup=self.stack.user.post.get_keyboard()
+                    reply_markup=self.user.post.get_keyboard()
                 )
             else:
                 # back is called in settings
@@ -134,12 +131,12 @@ class CallbackHandler:
             self.answer_callback_query(call.id, text=call.data)
 
             if call.data == inline_keys.like:
-                self.stack.user.post.like()
-                keyboard = self.stack.user.post.get_keyboard()
+                self.user.post.like()
+                keyboard = self.user.post.get_keyboard()
 
             elif call.data in [inline_keys.follow, inline_keys.unfollow]:
-                self.stack.user.post.follow()
-                keyboard = self.stack.user.post.get_actions_keyboard()
+                self.user.post.follow()
+                keyboard = self.user.post.get_actions_keyboard()
 
             # update main menu keyboard
             self.stack.edit_message(
@@ -168,16 +165,16 @@ class CallbackHandler:
                 field = 'status'
 
                 # toggle between deleted and current post status
-                other_status = self.stack.user.post.post_status
+                other_status = self.user.post.post_status
                 if other_status == post_status.DELETED:
                     other_status = post_status.OPEN
                 values = list({post_status.DELETED, other_status})
 
-            self.stack.user.post.toggle_field_values(field=field, values=values)
+            self.user.post.toggle_field_values(field=field, values=values)
             self.stack.edit_message(
                 call.message.chat.id, call.message.message_id,
-                text=self.stack.user.post.get_text(),
-                reply_markup=self.stack.user.post.get_actions_keyboard()
+                text=self.user.post.get_text(),
+                reply_markup=self.user.post.get_actions_keyboard()
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.change_identity)
@@ -211,10 +208,10 @@ class CallbackHandler:
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            self.stack.user.update_settings(identity_type=call.data)
+            self.user.update_settings(identity_type=call.data)
             self.stack.edit_message(
                 call.message.chat.id, call.message.message_id,
-                text=self.stack.get_settings_text(), reply_markup=self.stack.get_settings_keyboard()
+                text=self.get_settings_text(), reply_markup=self.get_settings_keyboard()
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.original_post)
@@ -231,15 +228,15 @@ class CallbackHandler:
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            post = self.stack.user.post.as_dict()
-            original_post_id = self.stack.db.post.find_one({'_id': post['replied_to_post_id']})['_id']
+            post = self.user.post.as_dict()
+            original_post_id = self.db.post.find_one({'_id': post['replied_to_post_id']})['_id']
 
-            original_post_info = self.stack.db.callback_data.find_one(
+            original_post_info = self.db.callback_data.find_one(
                 {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': original_post_id}
             )
             post_handler = Post(
-                mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
-                post_id=original_post_id, chat_id=self.stack.user.chat_id,
+                mongodb=self.user.db, stackbot=self.user.stackbot,
+                post_id=original_post_id, chat_id=self.user.chat_id,
                 gallery_filters=original_post_info['gallery_filters'], is_gallery=original_post_info['is_gallery']
             )
             self.stack.edit_message(
@@ -257,17 +254,17 @@ class CallbackHandler:
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            post = self.stack.user.post.as_dict()
+            post = self.user.post.as_dict()
             gallery_post_type = post_type.ANSWER if call.data == inline_keys.show_answers else post_type.COMMENT
             gallery_filters = {'replied_to_post_id': post['_id'], 'type': gallery_post_type, 'status': post_status.OPEN}
-            posts = self.stack.db.post.find(gallery_filters).sort('date', -1)
+            posts = self.db.post.find(gallery_filters).sort('date', -1)
 
-            num_posts = self.stack.db.post.count_documents(gallery_filters)
+            num_posts = self.db.post.count_documents(gallery_filters)
             next_post = next(posts)
 
             is_gallery = True if num_posts > 1 else False
             self.edit_gallery(call, next_post['_id'], is_gallery, gallery_filters)
-            self.stack.db.callback_data.update_one(
+            self.db.callback_data.update_one(
                 {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': next_post['_id']},
                 {'$set': {'gallery_filters': gallery_filters, 'is_gallery': is_gallery, 'preview': False}},
                 upsert=True,
@@ -277,19 +274,19 @@ class CallbackHandler:
         def next_prev_callback(call):
             self.answer_callback_query(call.id, text=call.data)
 
-            post = self.stack.user.post.as_dict()
+            post = self.user.post.as_dict()
             operator = '$gt' if call.data == inline_keys.next_post else '$lt'
             asc_desc = 1 if call.data == inline_keys.next_post else -1
 
             # Get basic filters and gallery filters
             filters = {'date': {operator: post['date']}, 'status': post_status.OPEN}
-            gallery_filters = self.stack.db.callback_data.find_one(
+            gallery_filters = self.db.callback_data.find_one(
                 {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': post['_id']}
             )['gallery_filters']
             filters.update(gallery_filters)
 
             # Get relevant posts
-            posts = self.stack.db.post.find(filters).sort('date', asc_desc)
+            posts = self.db.post.find(filters).sort('date', asc_desc)
 
             try:
                 next_post = next(posts)
@@ -349,13 +346,13 @@ class CallbackHandler:
         )
 
         # Delete message after a while
-        self.queue_delete_message(chat_id, message.message_id, DELETE_BOT_MESSAGES_AFTER_TIME)
+        self.queue_message_deletion(chat_id, message.message_id, DELETE_BOT_MESSAGES_AFTER_TIME)
 
     def file_unique_id_to_content(self, file_unique_id):
         """
         Get file content having a file_id.
         """
-        query_result = self.stack.db.post.find_one({'content.file_unique_id': file_unique_id}, {'content.$': 1})
+        query_result = self.db.post.find_one({'content.file_unique_id': file_unique_id}, {'content.$': 1})
         if not query_result:
             return
 
@@ -374,13 +371,13 @@ class CallbackHandler:
         We also store post_type in the database to use the right handler in user object (Question, Answer, Comment).
         """
         post_id = self.retrive_post_id_from_message_text(call.message.text)
-        callback_data = self.stack.db.callback_data.find_one(
+        callback_data = self.db.callback_data.find_one(
             {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': ObjectId(post_id)}
         )
         return callback_data or {}
 
     def get_gallery_filters(self, chat_id, message_id):
-        result = self.stack.db.callback_data.find_one({'chat_id': chat_id, 'message_id': message_id})
+        result = self.db.callback_data.find_one({'chat_id': chat_id, 'message_id': message_id})
         if not result:
             return {}
         return result.get('gallery_filters', {})
@@ -396,8 +393,8 @@ class CallbackHandler:
             Next and previous buttions will be added to the message if is_gallery is True.
         """
         post_handler = Post(
-            mongodb=self.stack.user.db, stackbot=self.stack,
-            post_id=next_post_id, chat_id=self.stack.user.chat_id,
+            mongodb=self.user.db, stackbot=self.stack,
+            post_id=next_post_id, chat_id=self.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_fiters
         )
 
@@ -408,7 +405,7 @@ class CallbackHandler:
         )
 
         # we should update the post_id for the buttons cause it is a new post
-        self.stack.db.callback_data.update_one(
+        self.db.callback_data.update_one(
             {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': next_post_id},
             {'$set': {'preview': False, 'is_gallery': is_gallery, 'gallery_filters': gallery_fiters}},
             upsert=True,

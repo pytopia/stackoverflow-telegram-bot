@@ -42,15 +42,15 @@ class StackBot:
         Register all handlers.
         """
         # Command handlers for commands such as /start /help /settings etc.
-        command_handlers = CommandHandler(stack=self)
+        command_handlers = CommandHandler(stack=self, db=self.db)
         command_handlers.register()
 
         # Message handlers for text messages
-        message_handlers = MessageHandler(stack=self)
+        message_handlers = MessageHandler(stack=self, db=self.db)
         message_handlers.register()
 
         # Callback handlers for inline buttons
-        callback_handlers = CallbackHandler(stack=self)
+        callback_handlers = CallbackHandler(stack=self, db=self.db)
         callback_handlers.register()
 
     def send_message(self, chat_id, text, reply_markup=None, emojize=True, delete_after=DELETE_BOT_MESSAGES_AFTER_TIME):
@@ -75,10 +75,10 @@ class StackBot:
                 self.delete_message(chat_id, prev_doc['message_id'])
                 db.auto_delete.delete_one({'_id': prev_doc['_id']})
 
-        self.queue_delete_message(chat_id, message.message_id, delete_after)
+        self.queue_message_deletion(chat_id, message.message_id, delete_after)
         return message
 
-    def queue_delete_message(self, chat_id, message_id, delete_after):
+    def queue_message_deletion(self, chat_id, message_id, delete_after):
         if not delete_after:
             return
 
@@ -114,29 +114,6 @@ class StackBot:
             self.bot.delete_message(chat_id, message_id)
         except Exception as e:
             logger.debug('Error deleting message: Message not found.')
-
-    def get_settings_keyboard(self):
-        """
-        Returns settings main menu keyboard.
-        """
-        muted_bot = self.user.settings.get('muted_bot')
-        if muted_bot:
-            keys = [inline_keys.change_identity, inline_keys.unmute]
-        else:
-            keys = [inline_keys.change_identity, inline_keys.mute]
-
-        return create_keyboard(*keys, is_inline=True)
-
-    def get_settings_text(self):
-        """
-        Returns settings text message.
-        """
-        text = SETTINGS_START_MESSAGE.format(
-            first_name=self.user.first_name,
-            username=self.user.username,
-            identity=self.user.identity,
-        )
-        return text
 
 if __name__ == '__main__':
     logger.info('Bot started...')
