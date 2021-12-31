@@ -1,5 +1,5 @@
 from src.constants import inline_keys, post_status
-from src.data_models.post import Post
+from src.data_models import Post
 from src.utils.keyboard import create_keyboard
 from telebot import types
 

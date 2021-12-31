@@ -7,7 +7,7 @@ from src import constants
 from src.bot import bot
 from src.constants import (inline_keys, keyboards, post_status, post_type,
                            states)
-from src.data_models.post import Post
+from src.data_models import Post
 from src.handlers.base import BaseHandler
 from src.user import User
 from src.utils.keyboard import create_keyboard
