@@ -67,11 +67,14 @@ class StackBot:
         message = self.bot.send_message(chat_id, text, reply_markup=reply_markup)
 
         if reply_markup == keyboards.main and delete_after is not False:
+            # We need to keep the message which generated main keyboard so that
+            # it does not go away. Otherwise, the user will be confused and won't have
+            # any keyboaard to interact with.
+            # To indicate this message, we set its delete_after to -1.
             delete_after = -1
-            prev_doc = self.db.auto_delete.find_one({
-                'chat_id': chat_id, 'delete_after': -1
-            })
+            prev_doc = self.db.auto_delete.find_one({'chat_id': chat_id, 'delete_after': -1})
             if prev_doc:
+                # remove the previous message with such a keyboard
                 self.delete_message(chat_id, prev_doc['message_id'])
                 db.auto_delete.delete_one({'_id': prev_doc['_id']})
 
@@ -104,7 +107,7 @@ class StackBot:
             elif text:
                 self.bot.edit_message_text(text=text, chat_id=chat_id, message_id=message_id)
         except Exception as e:
-            logger.debug(e)
+            logger.debug(f'Error editing message: {e}')
 
     def delete_message(self, chat_id, message_id):
         """
@@ -113,7 +116,7 @@ class StackBot:
         try:
             self.bot.delete_message(chat_id, message_id)
         except Exception as e:
-            logger.debug('Error deleting message: Message not found.')
+            logger.debug(f'Error deleting message: {e}')
 
 if __name__ == '__main__':
     logger.info('Bot started...')

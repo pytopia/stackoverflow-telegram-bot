@@ -120,65 +120,6 @@ class User:
 
         return message
 
-    def update_state(self, state: str):
-        """
-        Update user state.
-
-        :param state: User state to set.
-        """
-        self.db.users.update_one({'chat.id': self.chat_id}, {'$set': {'state': state}})
-
-    def reset(self):
-        """
-        Reset user state and data.
-        """
-        logger.info('Reset user data.')
-        self.db.users.update_one(
-            {'chat.id': self.chat_id},
-            {'$set': {'state': states.MAIN}, '$unset': {'tracker': 1}}
-        )
-
-        self.db.post.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
-
-    def exists(self):
-        """
-        Check if user exists in database.
-        """
-        if self.db.users.find_one({'chat.id': self.chat_id}) is None:
-            return False
-
-        return True
-
-    def register(self, message):
-        if self.exists():
-            return
-
-        self.send_message(
-            constants.WELCOME_MESSAGE.format(first_name=self.first_name),
-            reply_markup=keyboards.main,
-            delete_after=False
-        )
-        self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
-        self.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
-        self.reset()
-
-    def track(self, **kwargs):
-        """
-        Track user actions and any other data.
-        """
-        track_data = self.tracker
-        track_data.update(kwargs)
-        self.db.users.update_one(
-            {'chat.id': self.chat_id},
-            {'$set': {'tracker': track_data}}
-        )
-
-    def untrack(self, *args):
-        self.db.users.update_one(
-            {'chat.id': self.chat_id},
-            {'$unset': {f'tracker.{arg}': 1 for arg in args}}
-        )
-
     def delete_message(self, message_id: str):
         """
         Delete user message.
@@ -201,6 +142,65 @@ class User:
 
         if new_preview_message_id:
             self.track(preview_message_id=new_preview_message_id)
+
+    def update_state(self, state: str):
+        """
+        Update user state.
+
+        :param state: User state to set.
+        """
+        self.db.users.update_one({'chat.id': self.chat_id}, {'$set': {'state': state}})
+
+    def reset(self):
+        """
+        Reset user state and data.
+        """
+        logger.info('Reset user data.')
+        self.db.users.update_one(
+            {'chat.id': self.chat_id},
+            {'$set': {'state': states.MAIN}, '$unset': {'tracker': 1}}
+        )
+
+        self.db.post.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
+
+    def register(self, message):
+        self.send_message(
+            constants.WELCOME_MESSAGE.format(first_name=self.first_name),
+            reply_markup=keyboards.main,
+            delete_after=False
+        )
+        if self.exists():
+            return
+
+        self.db.users.update_one({'chat.id': message.chat.id}, {'$set': message.json}, upsert=True)
+        self.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
+        self.reset()
+
+    def exists(self):
+        """
+        Check if user exists in database.
+        """
+        if self.db.users.find_one({'chat.id': self.chat_id}) is None:
+            return False
+
+        return True
+
+    def track(self, **kwargs):
+        """
+        Track user actions and any other data.
+        """
+        track_data = self.tracker
+        track_data.update(kwargs)
+        self.db.users.update_one(
+            {'chat.id': self.chat_id},
+            {'$set': {'tracker': track_data}}
+        )
+
+    def untrack(self, *args):
+        self.db.users.update_one(
+            {'chat.id': self.chat_id},
+            {'$unset': {f'tracker.{arg}': 1 for arg in args}}
+        )
 
     def update_settings(self, **kwargs):
         """

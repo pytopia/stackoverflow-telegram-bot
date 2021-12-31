@@ -3,6 +3,7 @@ import os
 import telebot
 from telebot import apihelper
 
+# Middleware handlers
 apihelper.ENABLE_MIDDLEWARE = True
 
 # Initialize bot

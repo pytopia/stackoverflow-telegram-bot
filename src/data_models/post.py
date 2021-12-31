@@ -28,6 +28,7 @@ class Post:
 
         self.is_gallery = is_gallery
         self.gallery_filters = gallery_filters
+
         self.emoji = constants.EMOJI.get(self.post_type)
         self.collection = self.db.post
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
@@ -240,7 +241,6 @@ class Post:
         if self.is_gallery:
             # A gallery post is a post that has more than one post and user
             # can choose to go to next or previous post.
-            # Previous page key
 
             # Find current page number
             conditions = self.gallery_filters.copy()

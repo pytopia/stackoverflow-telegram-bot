@@ -100,42 +100,18 @@ class MessageHandler(BaseHandler):
         @self.stack.bot.message_handler(text=[keys.settings])
         def settings(message):
             """
-            User cancels sending a post.
-
-            1. Send Settings Message.
+            User wants to change settings.
             """
-            if self.user.state != states.MAIN:
-                return
-
             self.user.send_message(self.get_settings_text(), self.get_settings_keyboard())
 
         @self.stack.bot.message_handler(text=[keys.search_questions])
         def search_questions(message):
             """
-            User cancels sending a post.
-
-            1. Send Settings Message.
+            User asks for all questions to search through.
             """
-            if self.user.state != states.MAIN:
-                return
-
             # we should change the post_id for the buttons
             gallery_filters = {'type': post_type.QUESTION, 'status': post_status.OPEN}
-            posts = self.db.post.find(gallery_filters).sort('date', -1)
-            num_posts = self.db.post.count_documents(gallery_filters)
-            next_post = next(posts)
-
-            is_gallery = True if num_posts > 1 else False
-            gallery_message = self.send_gallery(
-                chat_id=message.chat.id, post_id=next_post['_id'],
-                is_gallery=is_gallery, gallery_filters=gallery_filters
-            )
-
-            self.db.callback_data.update_one(
-                {'chat_id': gallery_message.chat.id, 'message_id': gallery_message.message_id, 'post_id': next_post['_id']},
-                {'$set': {'gallery_filters': gallery_filters, 'is_gallery': is_gallery, 'preview': False}},
-                upsert=True,
-            )
+            self.send_gallery(gallery_filters=gallery_filters)
 
         # Handles all other messages with the supported content_types
         @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
@@ -163,7 +139,7 @@ class MessageHandler(BaseHandler):
             new_preview_message = self.user.post.send_to_one(chat_id=message.chat.id, preview=True)
             self.user.clean_preview(new_preview_message.message_id)
 
-    def send_gallery(self, chat_id, post_id, is_gallery=False, gallery_filters=None):
+    def send_gallery(self, gallery_filters=None):
         """
         Send gallery of posts starting with the post with post_id.
 
@@ -172,9 +148,18 @@ class MessageHandler(BaseHandler):
         :param is_gallery: If True, send gallery of posts. If False, send single post.
             Next and previous buttions will be added to the message if is_gallery is True.
         """
+        posts = self.db.post.find(gallery_filters).sort('date', -1)
+        num_posts = self.db.post.count_documents(gallery_filters)
+        try:
+            next_post_id = next(posts)['_id']
+        except StopIteration:
+            self.user.send_message(constants.NO_MORE_POSTS_MESSAGE)
+
+        is_gallery = True if num_posts > 1 else False
+
         post_handler = Post(
             mongodb=self.user.db, stackbot=self.stack,
-            post_id=post_id, chat_id=self.user.chat_id,
+            post_id=next_post_id, chat_id=self.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_filters
         )
         message = self.user.send_message(
@@ -188,9 +173,9 @@ class MessageHandler(BaseHandler):
 
         # we should store the callback data for the new message
         self.db.callback_data.insert_one({
-            'chat_id': chat_id,
+            'chat_id': self.user.chat_id,
             'message_id': message.message_id,
-            'post_id': post_id,
+            'post_id': next_post_id,
             'preview': False,
             'is_gallery': is_gallery,
             'gallery_filtes': gallery_filters,

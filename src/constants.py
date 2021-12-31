@@ -150,3 +150,6 @@ SETTINGS_START_MESSAGE = (
 
     ':smiling_face_with_sunglasses: Identity: <strong>{identity}</strong>\n\n'
 )
+
+# Gallery Templates
+GALLERY_NO_POSTS_MESSAGE = f':warning: No {post_type} found!'
