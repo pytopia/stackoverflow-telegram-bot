@@ -1,3 +1,3 @@
-from handlers.command_handler import CommandHandler
-from handlers.message_handler import MessageHandler
-from handlers.callback_handler import CallbackHandler
+from src.handlers.command_handler import CommandHandler
+from src.handlers.message_handler import MessageHandler
+from src.handlers.callback_handler import CallbackHandler

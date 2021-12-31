@@ -34,15 +34,17 @@ class CallbackHandler(BaseHandler):
             )
 
             # register user if not exists
-            if not self.user.exists():
-                self.user.register(call.message)
+            self.user.register(call.message)
 
             # Demojize text
             call.data = emoji.demojize(call.data)
             call.message.text = emoji.demojize(call.message.text)
 
             # update post info
-            gallery_filters = self.get_gallery_filters(call.message.chat.id, call.message.message_id, self.user.post.post_id)
+            gallery_filters = self.get_gallery_filters(
+                call.message.chat.id, call.message.message_id,
+                self.user.post.post_id
+            )
             self.user.post.is_gallery = call_info.get('is_gallery', False)
             self.user.post.gallery_filters = gallery_filters
 

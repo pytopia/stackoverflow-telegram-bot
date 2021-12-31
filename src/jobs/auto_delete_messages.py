@@ -1,9 +1,8 @@
 import time
 
-import emoji
 from loguru import logger
 from src.bot import bot
-from src.constants import keyboards, states
+from src.constants import states
 from src.db import db
 from src.run import StackBot
 

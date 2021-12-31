@@ -123,12 +123,13 @@ class MessageHandler(BaseHandler):
             1. Check if message content is supported by the bot for the current post type (Question, Answer, Comment).
             2. Update user post data in database with the new message content.
             3. Send message preview to the user.
-            4. Delete previous bot messages.
+            4. Delete previous post preview.
             """
             print(message.text)
             if self.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
                 return
 
+            # Not all types of post support all content types. For example comments do not support texts.
             supported_contents = self.user.post.supported_content_types
             if message.content_type not in supported_contents:
                 self.user.send_message(
@@ -136,13 +137,24 @@ class MessageHandler(BaseHandler):
                 )
                 return
 
+            # Update the post content with the new message content
             self.user.post.update(message, replied_to_post_id=self.user.tracker.get('replied_to_post_id'))
+
+            # Send message preview to the user
             new_preview_message = self.user.post.send_to_one(chat_id=message.chat.id, preview=True)
+
+            # Delete previous preview message and set the new one
             self.user.clean_preview(new_preview_message.message_id)
 
     def send_gallery(self, gallery_filters=None):
         """
         Send gallery of posts starting with the post with post_id.
+
+        1. Get posts from database.
+        2. Send posts to the user.
+        3. Store callback data for the gallery.
+        4. Clean the preview messages as galleries are not meant to stay in bot history.
+            We delete the galleries after a period of time to keep the bot history clean.
 
         :param chat_id: Chat id to send gallery to.
         :param post_id: Post id to start gallery from.
@@ -150,7 +162,6 @@ class MessageHandler(BaseHandler):
             Next and previous buttions will be added to the message if is_gallery is True.
         """
         posts = self.db.post.find(gallery_filters).sort('date', -1)
-        num_posts = self.db.post.count_documents(gallery_filters)
         try:
             next_post_id = next(posts)['_id']
         except StopIteration:
@@ -158,6 +169,8 @@ class MessageHandler(BaseHandler):
             self.user.send_message(text)
             return
 
+        # Send the posts gallery
+        num_posts = self.db.post.count_documents(gallery_filters)
         is_gallery = True if num_posts > 1 else False
         post_handler = Post(
             mongodb=self.user.db, stackbot=self.stack,
@@ -170,11 +183,8 @@ class MessageHandler(BaseHandler):
             delete_after=False,
         )
 
-        # if user asks for this gallery again, we delete the old one to keep the history clean.
-        self.user.clean_preview(message.message_id)
-
         # we should store the callback data for the new message
-        output = self.db.callback_data.insert_one({
+        self.db.callback_data.insert_one({
             'chat_id': self.user.chat_id,
             'message_id': message.message_id,
             'post_id': next_post_id,
@@ -183,4 +193,7 @@ class MessageHandler(BaseHandler):
             'gallery_filters': gallery_filters,
         })
         logger.info(f'INSERT: Callback data for message {message.message_id}: {next_post_id}')
+
+        # if user asks for this gallery again, we delete the old one to keep the history clean.
+        self.user.clean_preview(message.message_id)
         return message

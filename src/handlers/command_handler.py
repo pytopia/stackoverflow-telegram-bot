@@ -29,7 +29,7 @@ class CommandHandler(BaseHandler):
             """
             self.user.reset()
             self.user.send_message(
-                WELCOME_MESSAGE.format(first_name=self.first_name),
+                WELCOME_MESSAGE.format(first_name=self.user.first_name),
                 reply_markup=keyboards.main,
                 delete_after=False
             )
