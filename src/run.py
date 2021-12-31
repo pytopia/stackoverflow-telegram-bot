@@ -76,7 +76,7 @@ class StackBot:
                 db.auto_delete.delete_one({'_id': prev_doc['_id']})
 
         self.queue_message_deletion(chat_id, message.message_id, delete_after)
-        self.update_callback_data(message.message_id, reply_markup)
+        self.update_callback_data(chat_id, message.message_id, reply_markup)
 
         return message
 
@@ -97,7 +97,7 @@ class StackBot:
             elif text:
                 self.bot.edit_message_text(text=text, chat_id=chat_id, message_id=message_id)
 
-            self.update_callback_data(message_id, reply_markup)
+            self.update_callback_data(chat_id, message_id, reply_markup)
         except Exception as e:
             logger.debug(f'Error editing message: {e}')
 
@@ -161,13 +161,13 @@ class StackBot:
             'delete_after': delete_after, 'created_at': time.time(),
         })
 
-    def update_callback_data(self, message_id, reply_markup):
+    def update_callback_data(self, chat_id, message_id, reply_markup):
         if reply_markup and isinstance(reply_markup, types.InlineKeyboardMarkup):
             logger.info(f'Updating callback data for message {message_id}')
 
             self.db.callback_data.update_one(
                 {
-                    'chat_id': self.user.chat_id,
+                    'chat_id': chat_id,
                     'message_id': message_id,
                     'post_id': self.user.post.post_id,
                 },
@@ -179,8 +179,6 @@ class StackBot:
                 },
                 upsert=True
             )
-
-
 
 if __name__ == '__main__':
     logger.info('Bot started...')

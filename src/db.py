@@ -4,7 +4,7 @@ from loguru import logger
 
 client = pymongo.MongoClient("localhost", 27017)
 db = client.test
-db.drop_collection('users')
+# db.drop_collection('users')
 
 logger.info('Building indexes...')
 db.users.create_index([('chat.id', 1)], unique=True)

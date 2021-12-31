@@ -26,6 +26,7 @@ while True:
         num_messages = db.auto_delete.count_documents({'chat_id': chat_id})
 
         # Delete messages
+        to_delete_messages = []
         for ind, doc in enumerate(db.auto_delete.find({'chat_id': chat_id})):
             chat_id = doc['chat_id']
             message_id = doc['message_id']
@@ -44,6 +45,7 @@ while True:
                 continue
 
             # Delete message
+            to_delete_messages.append((chat_id, message_id))
             stackbot.delete_message(chat_id=chat_id, message_id=message_id)
             db.auto_delete.delete_one({'_id': doc['_id']})
             db.callback_data.delete_many({'chat_id': chat_id, 'message_id': message_id})

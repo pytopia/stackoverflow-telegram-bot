@@ -368,7 +368,7 @@ class CallbackHandler(BaseHandler):
         )
 
         # Edit message with new gallery
-        post_text, post_keyboard = self.user.post.get_post_text_and_keyboard()
+        post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
         self.stack.user.edit_message(
             call.message.message_id,
             text=post_text,

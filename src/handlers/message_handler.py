@@ -33,6 +33,8 @@ class MessageHandler(BaseHandler):
             if message.content_type == 'text':
                 message.text = emoji.demojize(message.text)
 
+            self.stack.queue_message_deletion(message.chat.id, message.message_id, constants.DELETE_USER_MESSAGES_AFTER_TIME)
+
         @self.stack.bot.message_handler(text=[keys.ask_question])
         def ask_question(message):
             """
