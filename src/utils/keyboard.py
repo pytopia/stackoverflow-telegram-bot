@@ -1,4 +1,5 @@
 import emoji
+from loguru import logger
 from telebot import types
 
 
@@ -13,6 +14,9 @@ def create_keyboard(*keys, reply_row_width=2, inline_row_width=3, resize_keyboar
     :param is_inline: If True, create inline keyboard.
     :param callback_data: If not None, use keys text as callback data.
     """
+    if callback_data and len(keys) != len(callback_data):
+        logger.warning('Callback data length is not equal to keys length. Some keys will be missing.')
+
     keys = list(keys)
 
     if is_inline:

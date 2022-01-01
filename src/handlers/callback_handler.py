@@ -1,3 +1,4 @@
+from os import truncate
 import re
 
 import emoji
@@ -61,14 +62,8 @@ class CallbackHandler(BaseHandler):
             3. Edit message with post text and actions keyboard.
             """
             self.answer_callback_query(call.id, text=call.data)
-
-            # actions keyboard (also update text)
             reply_markup = self.stack.user.post.get_actions_keyboard()
-
-            # TODO: If in future, we update the posts in a queue structure, we can remove this
-            text = self.stack.user.post.get_text()
-
-            self.stack.user.edit_message(call.message.message_id, text=text, reply_markup=reply_markup)
+            self.stack.user.edit_message(call.message.message_id, reply_markup=reply_markup)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.answer, inline_keys.comment])
         def answer_comment_callback(call):
@@ -305,6 +300,22 @@ class CallbackHandler(BaseHandler):
             First and last page of a gallery button.
             """
             self.answer_callback_query(call.id, text=constants.GALLERY_NO_POSTS_MESSAGE.format(post_type='post'))
+
+        @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.show_more, inline_keys.show_less])
+        def show_more(call):
+            """
+            Show more or less text for a long post.
+            """
+            self.answer_callback_query(call.id, text=call.data)
+
+            if call.data == inline_keys.show_more:
+                truncate = False
+            elif call.data == inline_keys.show_less:
+                truncate = True
+
+            text, keyboard = self.stack.user.post.get_text_and_keyboard(truncate=truncate)
+            # update main menu keyboard
+            self.stack.user.edit_message(call.message.message_id, text=text, reply_markup=keyboard)
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):

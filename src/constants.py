@@ -47,7 +47,9 @@ inline_keys = SimpleNamespace(
     next_post='»',
     prev_post='«',
     last_page=':white_small_square:',
-    first_page=':white_small_square:'
+    first_page=':white_small_square:',
+    show_more=u'\u2193 Show More',
+    show_less=u'\u2191 Show Less',
 )
 
 keyboards = SimpleNamespace(
@@ -84,6 +86,11 @@ user_identity = SimpleNamespace(
     ALIAS=':smiling_face_with_sunglasses: Alias',
 )
 
+post_text_length_button = SimpleNamespace(
+    SHOW_MORE=inline_keys.show_more,
+    SHOW_LESS=inline_keys.show_less,
+)
+
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
 EMOJI = {
     post_type.QUESTION: ':red_question_mark:',
@@ -94,6 +101,18 @@ EMOJI = {
 OPEN_POST_ONLY_ACITONS = [
     inline_keys.comment, inline_keys.edit, inline_keys.answer,
 ]
+
+# Message Character Limit
+
+# Posts longer than this are not allowed
+MESSAGE_CHAR_LIMIT = {
+    post_type.QUESTION: 4096,
+    post_type.ANSWER: 4096,
+    post_type.COMMENT: 500,
+}
+
+# This is used for show more button
+MESSAGE_SPLIT_CHAR_LIMIT = 500
 
 # Auto delete user and bot messages after a period of time
 DELETE_BOT_MESSAGES_AFTER_TIME = 10

@@ -2,6 +2,7 @@ import concurrent.futures
 import json
 from typing import List, Tuple
 
+from bs4 import BeautifulSoup
 from bson.objectid import ObjectId
 from loguru import logger
 from src import constants
@@ -10,7 +11,7 @@ from src.constants import (SUPPORTED_CONTENT_TYPES, inline_keys, post_status,
 from src.utils.common import (human_readable_size, human_readable_unix_time,
                               json_encoder)
 from src.utils.keyboard import create_keyboard
-from telebot import types
+from telebot import types, util
 
 
 class BasePost:
@@ -33,6 +34,9 @@ class BasePost:
         self.emoji = constants.EMOJI.get(self.post_type)
         self.collection = self.db.post
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
+
+        self.post_text_length_button = None
+        self.is_splitted = True
 
     def as_dict(self) -> dict:
         logger.info(f'Getting post with id {self.post_id}')
@@ -116,8 +120,7 @@ class BasePost:
         :param preview: If True, send post in preview mode. Default is False.
         :return: Message sent to user.
         """
-        post_keyboard = self.get_keyboard(preview=preview)
-        post_text = self.get_text()
+        post_text, post_keyboard = self.get_text_and_keyboard(preview=preview)
 
         # Preview to user mode or send to other users
         sent_message = self.stackbot.send_message(
@@ -151,7 +154,7 @@ class BasePost:
         chat_ids = list(map(lambda user: user['chat']['id'], self.db.users.find()))
         return self.send_to_many(chat_ids)
 
-    def get_text(self, preview: bool = False, prettify: bool = True) -> str:
+    def get_text(self, preview: bool = False, prettify: bool = True, truncate: bool = True) -> str:
         """
         Get post text.
 
@@ -173,6 +176,25 @@ class BasePost:
 
         # prettify message with other information such as sender, post status, etc.
         post_text = post_text.strip()
+
+        # Splits one string into multiple strings, with a maximum amount of `chars_per_string` (max. 4096)
+        # Splits by last '\n', '. ' or ' ' in exactly this priority.
+        # smart_split returns a list with the splitted text.
+        splitted_text = util.smart_split(post_text, chars_per_string=constants.MESSAGE_SPLIT_CHAR_LIMIT)
+        if truncate and len(splitted_text) > 1:
+            post_text = splitted_text[0]
+            # If we truncate the text, some html tags may become unclosed resulting in
+            # parsing html error. We therfore use beautifulsoup to close the tags.
+            soup = BeautifulSoup(post_text, 'html.parser')
+            post_text = soup.prettify()
+
+            self.post_text_length_button = inline_keys.show_more
+
+        elif not truncate and len(splitted_text) > 1:
+            self.post_text_length_button = inline_keys.show_less
+
+        # Prettify adds extra information such as post type, from_user, date, etc.
+        # Otherwise only raw text is returned.
         if prettify:
             post_type = post['type'].title()
             if preview:
@@ -188,7 +210,7 @@ class BasePost:
 
         return post_text
 
-    def get_keyboard(self, preview: bool = False) -> types.InlineKeyboardMarkup:
+    def get_keyboard(self, preview: bool = False, truncate: bool = True) -> types.InlineKeyboardMarkup:
         """
         Get post keyboard that has attached files + other actions on post such as like, actions menu, etc.
 
@@ -235,6 +257,12 @@ class BasePost:
             keys.extend([new_like_key, inline_keys.actions])
             callback_data.extend([inline_keys.like, inline_keys.actions])
 
+        # call get text to set is_splitted
+        self.get_text(preview=preview, truncate=truncate)
+        if self.post_text_length_button:
+            keys.append(self.post_text_length_button)
+            callback_data.append(self.post_text_length_button)
+
         if self.is_gallery:
             # A gallery post is a post that has more than one post and user
             # can choose to go to next or previous post.
@@ -264,8 +292,8 @@ class BasePost:
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
 
-    def get_text_and_keyboard(self):
-        return self.get_text(), self.get_keyboard()
+    def get_text_and_keyboard(self, preview=False, prettify: bool = True, truncate: bool = True):
+        return self.get_text(preview, prettify, truncate), self.get_keyboard(preview, truncate)
 
     def get_followers(self) -> list:
         """
