@@ -27,6 +27,7 @@ class CallbackHandler(BaseHandler):
             # post_type (question, answer, comment, ...). When user clicks on an inline keyboard button,
             # we get the post type to know what kind of post we are dealing with.
             call_info = self.get_call_info(call)
+            print(call_info)
             post_id = call_info.get('post_id')
             if post_id is None:
                 logger.warning('post_id is None!')
@@ -234,14 +235,7 @@ class CallbackHandler(BaseHandler):
                 post_id=original_post_id, chat_id=self.stack.user.chat_id,
                 gallery_filters=gallery_filters, is_gallery=is_gallery
             )
-
-            # Edit message with original post keyboard and text
-            post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
-            self.stack.user.edit_message(
-                call.message.message_id,
-                text=post_text,
-                reply_markup=post_keyboard,
-            )
+            self.stack.user.post.send_to_one(self.stack.user.chat_id)
 
         @bot.callback_query_handler(
             func=lambda call: call.data in [inline_keys.show_comments, inline_keys.show_answers]

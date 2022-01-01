@@ -132,7 +132,7 @@ class MessageHandler(BaseHandler):
             User asks for all his data (Questions, Answers, Comments, etc.)
             """
             # we should change the post_id for the buttons
-            self.stack.user.send_message(keys.my_data, keyboards.my_data)
+            self.stack.user.send_message(constants.MY_DATA_MESSAGE, keyboards.my_data)
 
         # Handles all other messages with the supported content_types
         @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
@@ -145,26 +145,33 @@ class MessageHandler(BaseHandler):
             3. Send message preview to the user.
             4. Delete previous post preview.
             """
-            print(message.text)
-            if self.stack.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
-                return
-
-            # Not all types of post support all content types. For example comments do not support texts.
-            supported_contents = self.stack.user.post.supported_content_types
-            if message.content_type not in supported_contents:
-                self.stack.user.send_message(
-                    constants.UNSUPPORTED_CONTENT_TYPE_MESSAGE.format(supported_contents=' '.join(supported_contents))
+            if self.stack.user.state in states.MAIN:
+                post_id = message.text
+                self.stack.user.post = BasePost(
+                    mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
+                    post_id=post_id, chat_id=self.stack.user.chat_id,
                 )
+                self.stack.user.post.send_to_one(message.chat.id)
                 return
 
-            # Update the post content with the new message content
-            self.stack.user.post.update(message, replied_to_post_id=self.stack.user.tracker.get('replied_to_post_id'))
+            elif self.stack.user.state in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
+                # Not all types of post support all content types. For example comments do not support texts.
+                supported_contents = self.stack.user.post.supported_content_types
+                if message.content_type not in supported_contents:
+                    self.stack.user.send_message(
+                        constants.UNSUPPORTED_CONTENT_TYPE_MESSAGE.format(supported_contents=' '.join(supported_contents))
+                    )
+                    return
 
-            # Send message preview to the user
-            new_preview_message = self.stack.user.post.send_to_one(chat_id=message.chat.id, preview=True)
+                # Update the post content with the new message content
+                self.stack.user.post.update(message, replied_to_post_id=self.stack.user.tracker.get('replied_to_post_id'))
 
-            # Delete previous preview message and set the new one
-            self.stack.user.clean_preview(new_preview_message.message_id)
+                # Send message preview to the user
+                new_preview_message = self.stack.user.post.send_to_one(chat_id=message.chat.id, preview=True)
+
+                # Delete previous preview message and set the new one
+                self.stack.user.clean_preview(new_preview_message.message_id)
+                return
 
     def send_gallery(self, gallery_filters=None):
         """
@@ -198,14 +205,7 @@ class MessageHandler(BaseHandler):
             post_id=next_post_id, chat_id=self.stack.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_filters
         )
-
-        # Send the gallery message
-        post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
-        message = self.stack.user.send_message(
-            text=post_text,
-            reply_markup=post_keyboard,
-            delete_after=-1,
-        )
+        message = self.stack.user.post.send_to_one(self.stack.user.chat_id)
 
         # if user asks for this gallery again, we delete the old one to keep the history clean.
         self.stack.user.clean_preview(message.message_id)

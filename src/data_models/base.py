@@ -25,7 +25,9 @@ class BasePost:
         self.db = mongodb
         self.stackbot = stackbot
 
-        self.post_id = post_id
+        # post_id has setter and getter to convert it to ObjectId in case it is a string
+        self._post_id = post_id
+
         self.chat_id = chat_id
 
         self.is_gallery = is_gallery
@@ -38,6 +40,12 @@ class BasePost:
         self.post_text_length_button = None
         self.is_splitted = True
 
+    @property
+    def post_id(self):
+        if isinstance(self._post_id, str):
+            return ObjectId(self._post_id)
+        return self._post_id
+
     def as_dict(self) -> dict:
         logger.info(f'Getting post with id {self.post_id}')
         if not self.post_id:
@@ -47,7 +55,6 @@ class BasePost:
 
     @property
     def owner_chat_id(self) -> str:
-        # logger.info(f'Getting owner chat id of post with id {self.post_id}')
         return self.as_dict().get('chat', {}).get('id')
 
     @property
@@ -280,7 +287,7 @@ class BasePost:
             callback_data.append(prev_key)
 
             # Page number key
-            post_position_key = f' -- {post_position}/{num_posts} --'
+            post_position_key = f'-- {post_position}/{num_posts} --'
             keys.append(post_position_key)
             callback_data.append('Page Number')
 

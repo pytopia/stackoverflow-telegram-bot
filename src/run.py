@@ -3,6 +3,7 @@ import time
 from typing import Union
 
 import emoji
+from bson.objectid import ObjectId
 from loguru import logger
 from telebot import custom_filters, types
 
@@ -163,7 +164,7 @@ class StackBot:
         pattern = '^:ID_button: (?P<id>[A-Za-z0-9]+)$'
         match = re.match(pattern, last_line)
         post_id = match.group('id') if match else None
-        return post_id
+        return ObjectId(post_id)
 
     def queue_message_deletion(self, chat_id: int, message_id: int, delete_after: Union[int, bool]):
         if not delete_after:
@@ -180,7 +181,6 @@ class StackBot:
     ):
         if reply_markup and isinstance(reply_markup, types.InlineKeyboardMarkup):
             logger.info(f'Updating callback data for message {message_id}')
-
             self.db.callback_data.update_one(
                 {
                     'chat_id': chat_id,

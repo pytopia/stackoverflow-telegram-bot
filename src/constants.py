@@ -117,7 +117,7 @@ MESSAGE_CHAR_LIMIT = {
 }
 
 # This is used for show more button
-MESSAGE_SPLIT_CHAR_LIMIT = 500
+MESSAGE_SPLIT_CHAR_LIMIT = 250
 
 # Auto delete user and bot messages after a period of time
 DELETE_BOT_MESSAGES_AFTER_TIME = 1
@@ -133,6 +133,7 @@ IDENTITY_TYPE_NOT_SET_WARNING = (
     ':warning: <strong>{identity_type}</strong> is not set. '
     'Please set it in your settings or Telegram.'
 )
+MY_DATA_MESSAGE = ':thought_balloon: Select your data type from the menu:'
 
 # Post Templates
 POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
