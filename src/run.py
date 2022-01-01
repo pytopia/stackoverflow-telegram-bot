@@ -1,5 +1,6 @@
 import re
 import time
+from typing import Union
 
 import emoji
 from loguru import logger
@@ -7,7 +8,7 @@ from telebot import custom_filters, types
 
 from src.bot import bot
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME,
-                           DELETE_FILE_MESSAGES_AFTER_TIME, keyboards)
+                           DELETE_FILE_MESSAGES_AFTER_TIME)
 from src.db import db
 from src.filters import IsAdmin
 from src.handlers import CallbackHandler, CommandHandler, MessageHandler
@@ -50,7 +51,12 @@ class StackBot:
         for handler in self.handlers:
             handler.register()
 
-    def send_message(self, chat_id, text, reply_markup=None, emojize=True, delete_after=DELETE_BOT_MESSAGES_AFTER_TIME):
+    def send_message(
+        self, chat_id: int, text: str,
+        reply_markup: Union[types.ReplyKeyboardMarkup, types.InlineKeyboardMarkup] = None,
+        emojize: bool = True,
+        delete_after: Union[int, bool] = DELETE_BOT_MESSAGES_AFTER_TIME
+    ):
         """
         Send message to telegram bot having a chat_id and text_content.
 
@@ -63,24 +69,28 @@ class StackBot:
         text = emoji.emojize(text) if emojize else text
         message = self.bot.send_message(chat_id, text, reply_markup=reply_markup)
 
-        if reply_markup == keyboards.main and delete_after is not False:
+        if (delete_after is not False) and isinstance(reply_markup, types.ReplyKeyboardMarkup):
             # We need to keep the message which generated main keyboard so that
             # it does not go away. Otherwise, the user will be confused and won't have
             # any keyboaard to interact with.
             # To indicate this message, we set its delete_after to -1.
+            logger.warning(f'Setting delete_after to -1 for message with message_id: {message.message_id}')
             delete_after = -1
-            prev_doc = self.db.auto_delete.find_one({'chat_id': chat_id, 'delete_after': -1})
-            if prev_doc:
-                # remove the previous message with such a keyboard
-                self.delete_message(chat_id, prev_doc['message_id'])
-                db.auto_delete.delete_one({'_id': prev_doc['_id']})
+            self.db.auto_delete.update_many(
+                {'chat_id': chat_id, 'delete_after': -1},
+                {'$set': {'delete_after': 0}}
+            )
 
         self.queue_message_deletion(chat_id, message.message_id, delete_after)
         self.update_callback_data(chat_id, message.message_id, reply_markup)
 
         return message
 
-    def edit_message(self, chat_id, message_id, text=None, reply_markup=None, emojize: bool = True):
+    def edit_message(
+        self, chat_id: int, message_id: int, text: str = None,
+        reply_markup: Union[types.ReplyKeyboardMarkup, types.InlineKeyboardMarkup] = None,
+        emojize: bool = True,
+    ):
         """
         Edit telegram message text and/or reply_markup.
         """
@@ -101,7 +111,7 @@ class StackBot:
         except Exception as e:
             logger.debug(f'Error editing message: {e}')
 
-    def delete_message(self, chat_id, message_id):
+    def delete_message(self, chat_id: int, message_id: int):
         """
         Delete bot message.
         """
@@ -111,7 +121,10 @@ class StackBot:
         except Exception as e:
             logger.debug(f'Error deleting message: {e}')
 
-    def send_file(self, chat_id, file_unique_id, message_id=None, delete_after=DELETE_FILE_MESSAGES_AFTER_TIME):
+    def send_file(
+        self, chat_id: int, file_unique_id: str, message_id: int = None,
+        delete_after=DELETE_FILE_MESSAGES_AFTER_TIME
+    ):
         """
         Send file to telegram bot having a chat_id and file_id.
         """
@@ -131,7 +144,7 @@ class StackBot:
 
         self.queue_message_deletion(chat_id, message.message_id, delete_after)
 
-    def file_unique_id_to_content(self, file_unique_id):
+    def file_unique_id_to_content(self, file_unique_id: str):
         """
         Get file content having a file_id.
         """
@@ -141,7 +154,7 @@ class StackBot:
 
         return query_result['content'][0]
 
-    def retrive_post_id_from_message_text(self, text):
+    def retrive_post_id_from_message_text(self, text: str):
         """
         Get post_id from message text.
         """
@@ -152,7 +165,7 @@ class StackBot:
         post_id = match.group('id') if match else None
         return post_id
 
-    def queue_message_deletion(self, chat_id, message_id, delete_after):
+    def queue_message_deletion(self, chat_id: int, message_id: int, delete_after: Union[int, bool]):
         if not delete_after:
             return
 
@@ -161,7 +174,10 @@ class StackBot:
             'delete_after': delete_after, 'created_at': time.time(),
         })
 
-    def update_callback_data(self, chat_id, message_id, reply_markup):
+    def update_callback_data(
+        self, chat_id: int, message_id: int,
+        reply_markup: Union[types.ReplyKeyboardMarkup, types.InlineKeyboardMarkup]
+    ):
         if reply_markup and isinstance(reply_markup, types.InlineKeyboardMarkup):
             logger.info(f'Updating callback data for message {message_id}')
 

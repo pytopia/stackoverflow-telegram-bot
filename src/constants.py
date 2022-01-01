@@ -120,8 +120,8 @@ MESSAGE_CHAR_LIMIT = {
 MESSAGE_SPLIT_CHAR_LIMIT = 500
 
 # Auto delete user and bot messages after a period of time
-DELETE_BOT_MESSAGES_AFTER_TIME = 10
-DELETE_USER_MESSAGES_AFTER_TIME = 10
+DELETE_BOT_MESSAGES_AFTER_TIME = 1
+DELETE_USER_MESSAGES_AFTER_TIME = 1
 DELETE_FILE_MESSAGES_AFTER_TIME = 1 * 60 * 60
 
 # Constant Text Messages
@@ -141,7 +141,8 @@ POST_PREVIEW_MESSAGE = (
     ':pencil: <strong>{post_type} Preview</strong>\n\n'
     '{post_text}\n'
     f'{"_" * 10}\n'
-    f'When done, click <strong>send</strong>.'
+    f'When done, click <strong>{keys.send_post}</strong>.\n\n'
+    ':ID_button: <code>{post_id}</code>'
 )
 SEND_POST_TO_ALL_MESSAGE = (
     '{emoji} <strong>New {post_type}</strong>\n'
@@ -155,7 +156,7 @@ SEND_POST_TO_ALL_MESSAGE = (
 )
 POST_START_MESSAGE = (
     ":pencil: <strong>{first_name}</strong>, send your <strong>{post_type}</strong> here.\n\n"
-    f"When done, click {keys.send_post}."
+    f"When done, click <strong>{keys.send_post}</strong>."
 )
 
 # Question Templates

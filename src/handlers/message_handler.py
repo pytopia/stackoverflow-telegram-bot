@@ -55,7 +55,7 @@ class MessageHandler(BaseHandler):
             ))
 
         @self.stack.bot.message_handler(text=[keys.cancel, keys.back])
-        def cancel(message):
+        def cancel_back(message):
             """
             User cancels sending a post.
 
@@ -64,7 +64,7 @@ class MessageHandler(BaseHandler):
             3. Delete previous bot messages.
             """
             self.stack.user.clean_preview()
-            self.stack.user.send_message(constants.CANCEL_MESSAGE, reply_markup=keyboards.main)
+            self.stack.user.send_message(message.text, reply_markup=keyboards.main)
             self.stack.user.reset()
 
         @self.stack.bot.message_handler(text=[keys.send_post])
@@ -186,7 +186,7 @@ class MessageHandler(BaseHandler):
             next_post_id = next(posts)['_id']
         except StopIteration:
             text = constants.GALLERY_NO_POSTS_MESSAGE.format(post_type=gallery_filters.get('type', 'post'))
-            self.stack.user.send_message(text, keyboards.main)
+            self.stack.user.send_message(text)
             return
 
         # Send the posts gallery
@@ -204,7 +204,7 @@ class MessageHandler(BaseHandler):
         message = self.stack.user.send_message(
             text=post_text,
             reply_markup=post_keyboard,
-            delete_after=False,
+            delete_after=-1,
         )
 
         # if user asks for this gallery again, we delete the old one to keep the history clean.

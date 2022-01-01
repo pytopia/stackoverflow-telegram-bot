@@ -199,7 +199,7 @@ class BasePost:
             post_type = post['type'].title()
             if preview:
                 post_text = constants.POST_PREVIEW_MESSAGE.format(
-                    post_text=post_text, post_type=post_type
+                    post_text=post_text, post_type=post_type, post_id=post['_id']
                 )
             else:
                 from_user = self.get_post_owner_identity()

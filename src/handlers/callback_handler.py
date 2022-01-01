@@ -302,7 +302,7 @@ class CallbackHandler(BaseHandler):
             self.answer_callback_query(call.id, text=constants.GALLERY_NO_POSTS_MESSAGE.format(post_type='post'))
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.show_more, inline_keys.show_less])
-        def show_more(call):
+        def show_more_less(call):
             """
             Show more or less text for a long post.
             """
@@ -313,8 +313,13 @@ class CallbackHandler(BaseHandler):
             elif call.data == inline_keys.show_less:
                 truncate = True
 
-            text, keyboard = self.stack.user.post.get_text_and_keyboard(truncate=truncate)
-            # update main menu keyboard
+            # check if it's a preview or a full post
+            preview = False
+            if self.stack.user.state == states.ASK_QUESTION:
+                preview = True
+
+            # update text and keyboard
+            text, keyboard = self.stack.user.post.get_text_and_keyboard(truncate=truncate, preview=preview)
             self.stack.user.edit_message(call.message.message_id, text=text, reply_markup=keyboard)
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))

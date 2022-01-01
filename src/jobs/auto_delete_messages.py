@@ -8,7 +8,7 @@ from src.run import StackBot
 
 
 stackbot = StackBot(mongodb=db, telebot=bot)
-DELETION_SLEEP = 10  # seconds
+DELETION_SLEEP = 1  # seconds
 KEEP_LAST_MESSAGES_NUMBER = 3
 
 while True:
