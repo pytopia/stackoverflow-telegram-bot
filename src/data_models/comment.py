@@ -1,11 +1,11 @@
 from bson.objectid import ObjectId
 from src.constants import post_status
-from src.data_models import Post
+from src.data_models.base import BasePost
 from src.utils.keyboard import create_keyboard
 from telebot import types
 
 
-class Comment(Post):
+class Comment(BasePost):
     """
     Class to handle the comments sent by the users on other posts.
     """

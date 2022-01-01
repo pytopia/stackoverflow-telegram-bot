@@ -2,7 +2,7 @@ import emoji
 from src import constants
 from src.bot import bot
 from src.constants import keyboards, keys, post_status, post_type, states
-from src.data_models import Post
+from src.data_models.base import BasePost
 from src.handlers.base import BaseHandler
 from src.user import User
 
@@ -169,7 +169,7 @@ class MessageHandler(BaseHandler):
         num_posts = self.db.post.count_documents(gallery_filters)
         is_gallery = True if num_posts > 1 else False
 
-        self.stack.user.post = Post(
+        self.stack.user.post = BasePost(
             mongodb=self.stack.user.db, stackbot=self.stack,
             post_id=next_post_id, chat_id=self.stack.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_filters

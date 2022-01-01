@@ -1,10 +1,10 @@
 from src.constants import inline_keys, post_status
-from src.data_models import Post
+from src.data_models.base import BasePost
 from src.utils.keyboard import create_keyboard
 from telebot import types
 
 
-class Question(Post):
+class Question(BasePost):
     """
     Class to handle questions sent by the users.
     """

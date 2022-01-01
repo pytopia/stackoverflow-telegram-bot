@@ -7,7 +7,7 @@ from src import constants
 from src.bot import bot
 from src.constants import (inline_keys, keyboards, post_status, post_type,
                            states)
-from src.data_models import Post
+from src.data_models.base import BasePost
 from src.handlers.base import BaseHandler
 from src.user import User
 from src.utils.keyboard import create_keyboard
@@ -234,7 +234,7 @@ class CallbackHandler(BaseHandler):
             is_gallery = original_post_info.get('is_gallery')
             gallery_filters = original_post_info.get('gallery_filters')
 
-            self.stack.user.post = Post(
+            self.stack.user.post = BasePost(
                 mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
                 post_id=original_post_id, chat_id=self.stack.user.chat_id,
                 gallery_filters=gallery_filters, is_gallery=is_gallery
@@ -361,7 +361,7 @@ class CallbackHandler(BaseHandler):
         :param is_gallery: If True, send gallery of posts. If False, send single post.
             Next and previous buttions will be added to the message if is_gallery is True.
         """
-        self.stack.user.post = Post(
+        self.stack.user.post = BasePost(
             mongodb=self.stack.user.db, stackbot=self.stack,
             post_id=next_post_id, chat_id=self.stack.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_fiters

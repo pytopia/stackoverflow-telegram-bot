@@ -6,7 +6,8 @@ from telebot import types
 from src import constants
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
                            keyboards, post_type, states)
-from src.data_models import Answer, Comment, Post, Question
+from src.data_models import Answer, Comment, Question
+from src.data_models.base import BasePost
 
 
 class User:
@@ -89,7 +90,7 @@ class User:
         elif (post.get('type') == post_type.COMMENT) or (self.state == states.COMMENT_POST):
             return Comment(**args)
 
-        return Post(**args)
+        return BasePost(**args)
 
     def send_message(
         self, text: str, reply_markup: Union[types.InlineKeyboardMarkup, types.ReplyKeyboardMarkup] = None,

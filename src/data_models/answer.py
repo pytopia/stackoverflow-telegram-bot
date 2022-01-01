@@ -1,11 +1,11 @@
 from bson.objectid import ObjectId
 from src.constants import inline_keys, post_status
-from src.data_models import Post
+from src.data_models.base import BasePost
 from src.utils.keyboard import create_keyboard
 from telebot import types
 
 
-class Answer(Post):
+class Answer(BasePost):
     """
     Class to handle the answers sent by the users to a question.
     """

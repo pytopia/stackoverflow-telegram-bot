@@ -13,7 +13,7 @@ from src.utils.keyboard import create_keyboard
 from telebot import types
 
 
-class Post:
+class BasePost:
     """
     General class for all types of posts: Question, Answer, Comment, etc.
     """
