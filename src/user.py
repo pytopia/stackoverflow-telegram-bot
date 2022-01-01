@@ -160,9 +160,6 @@ class User:
         self.db.post.delete_one({'chat.id': self.chat_id, 'status': constants.post_status.PREP})
 
     def register(self, message):
-        if self.exists():
-            return
-
         logger.info('Registering user...')
         self.send_message(
             constants.WELCOME_MESSAGE.format(first_name=self.first_name),
@@ -173,7 +170,7 @@ class User:
         self.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
         self.reset()
 
-    def exists(self):
+    def is_registered(self):
         """
         Check if user exists in database.
         """

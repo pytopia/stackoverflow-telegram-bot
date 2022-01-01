@@ -27,7 +27,8 @@ class MessageHandler(BaseHandler):
             )
 
             # register if not exits already
-            self.stack.user.register(message)
+            if not self.stack.user.is_registered:
+                self.stack.user.register(message)
 
             # Demojize text
             if message.content_type == 'text':
@@ -53,7 +54,7 @@ class MessageHandler(BaseHandler):
                 first_name=self.stack.user.first_name, post_type='question'
             ))
 
-        @self.stack.bot.message_handler(text=[keys.cancel])
+        @self.stack.bot.message_handler(text=[keys.cancel, keys.back])
         def cancel(message):
             """
             User cancels sending a post.
@@ -107,9 +108,31 @@ class MessageHandler(BaseHandler):
             """
             User asks for all questions to search through.
             """
-            # we should change the post_id for the buttons
             gallery_filters = {'type': post_type.QUESTION, 'status': post_status.OPEN}
             self.send_gallery(gallery_filters=gallery_filters)
+
+        @self.stack.bot.message_handler(text=[keys.my_questions, keys.my_answers, keys.my_comments])
+        def my_questions(message):
+            """
+            User asks for all questions to search through.
+            """
+            if message.text == keys.my_questions:
+                filter_type = post_type.QUESTION
+            elif message.text == keys.my_answers:
+                filter_type = post_type.ANSWER
+            elif message.text == keys.my_comments:
+                filter_type = post_type.COMMENT
+
+            gallery_filters = {'type': filter_type, 'chat.id': message.chat.id}
+            self.send_gallery(gallery_filters=gallery_filters)
+
+        @self.stack.bot.message_handler(text=[keys.my_data])
+        def my_data(message):
+            """
+            User asks for all his data (Questions, Answers, Comments, etc.)
+            """
+            # we should change the post_id for the buttons
+            self.stack.user.send_message(keys.my_data, keyboards.my_data)
 
         # Handles all other messages with the supported content_types
         @bot.message_handler(content_types=constants.SUPPORTED_CONTENT_TYPES)
@@ -122,6 +145,7 @@ class MessageHandler(BaseHandler):
             3. Send message preview to the user.
             4. Delete previous post preview.
             """
+            print(message.text)
             if self.stack.user.state not in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:
                 return
 
@@ -162,7 +186,7 @@ class MessageHandler(BaseHandler):
             next_post_id = next(posts)['_id']
         except StopIteration:
             text = constants.GALLERY_NO_POSTS_MESSAGE.format(post_type=gallery_filters.get('type', 'post'))
-            self.stack.user.send_message(text)
+            self.stack.user.send_message(text, keyboards.main)
             return
 
         # Send the posts gallery

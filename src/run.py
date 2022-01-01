@@ -35,9 +35,9 @@ class StackBot:
         # Note: The order of handlers matters as the first
         # handler that matches a message will be executed.
         self.handlers = [
+            CommandHandler(stack=self, db=self.db),
             MessageHandler(stack=self, db=self.db),
             CallbackHandler(stack=self, db=self.db),
-            CommandHandler(stack=self, db=self.db),
         ]
         self.register()
 

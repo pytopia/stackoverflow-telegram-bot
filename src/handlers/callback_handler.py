@@ -1,4 +1,3 @@
-from os import truncate
 import re
 
 import emoji
@@ -38,7 +37,8 @@ class CallbackHandler(BaseHandler):
             )
 
             # register user if not exists
-            self.stack.user.register(call.message)
+            if not self.stack.user.is_registered:
+                self.stack.user.register(call.message)
 
             # Demojize text
             call.data = emoji.demojize(call.data)

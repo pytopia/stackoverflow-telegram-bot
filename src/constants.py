@@ -7,7 +7,7 @@ from src.utils.keyboard import create_keyboard
 keys = SimpleNamespace(
     settings=':gear: Settings',
     cancel=':cross_mark: Cancel',
-    back=':arrow_left: Back',
+    back=':BACK_arrow: Back',
     next=':arrow_right: Next',
     add=':heavy_plus_sign: Add',
     save=':check_mark_button: Save',
@@ -17,6 +17,10 @@ keys = SimpleNamespace(
     send_post=':envelope_with_arrow: Send',
     send_answer=':envelope_with_arrow: Send Answer',
     search_questions=':magnifying_glass_tilted_right: Search Questions',
+    my_data=':thought_balloon: My Data',
+    my_questions=':red_question_mark: My Questions',
+    my_answers=':bright_button: My Answers',
+    my_comments=':speech_balloon: My Comments',
 )
 
 inline_keys = SimpleNamespace(
@@ -53,8 +57,9 @@ inline_keys = SimpleNamespace(
 )
 
 keyboards = SimpleNamespace(
-    main=create_keyboard(keys.ask_question, keys.search_questions, keys.settings),
+    main=create_keyboard(keys.ask_question, keys.search_questions, keys.my_data, keys.settings),
     send_post=create_keyboard(keys.cancel, keys.send_post),
+    my_data=create_keyboard(keys.my_questions, keys.my_answers, keys.my_comments, keys.back),
 )
 
 states = SimpleNamespace(
