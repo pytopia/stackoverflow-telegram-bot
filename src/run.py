@@ -132,7 +132,11 @@ class StackBot:
         """
         try:
             self.bot.delete_message(chat_id, message_id)
+
+            # Delete message trace from all collections.
             self.db.callback_data.delete_many({'chat_id': chat_id, 'message_id': message_id})
+            self.db.auto_update.delete_many({'chat_id': chat_id, 'message_id': message_id})
+            self.db.auto_delete.delete_many({'chat_id': chat_id, 'message_id': message_id})
         except Exception as e:
             logger.debug(f'Error deleting message: {e}')
 

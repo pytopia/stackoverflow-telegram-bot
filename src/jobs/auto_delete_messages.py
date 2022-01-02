@@ -8,11 +8,11 @@ from src.run import StackBot
 
 
 stackbot = StackBot(mongodb=db, telebot=bot)
-DELETION_SLEEP = 3  # seconds
+DELETION_SLEEP = 10  # seconds
 KEEP_LAST_MESSAGES_NUMBER = 3
 
 while True:
-    logger.info('Start deletion process...')
+    print('Start deletion process...')
     chat_ids = set()
     skip_chat_ids = set()
     for chat_id in db.auto_delete.distinct('chat_id'):
@@ -45,7 +45,11 @@ while True:
             # Delete message
             stackbot.delete_message(chat_id=chat_id, message_id=message_id)
             db.auto_delete.delete_one({'_id': doc['_id']})
+
+            # Delete message in callback data and auto_update data
             db.callback_data.delete_many({'chat_id': chat_id, 'message_id': message_id})
+            db.auto_update.delete_many({'chat_id': chat_id, 'message_id': message_id})
+
             chat_ids.add(chat_id)
 
     time.sleep(DELETION_SLEEP)

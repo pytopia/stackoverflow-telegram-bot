@@ -356,6 +356,10 @@ class CallbackHandler(BaseHandler):
         We also store post_type in the database to use the right handler in user object (Question, Answer, Comment).
         """
         post_id = self.stack.retrive_post_id_from_message_text(call.message.text)
+
+        callback_data = self.db.callback_data.find_one(
+            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': post_id}
+        )
         callback_data = self.db.callback_data.find_one(
             {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': ObjectId(post_id)}
         )

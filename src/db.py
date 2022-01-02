@@ -17,7 +17,10 @@ db.callback_data.create_index([('chat_id', 1), ('message_id', 1)])
 db.callback_data.create_index([('chat_id', 1), ('message_id', 1), ('post_id', 1)])
 db.callback_data.create_index([('chat_id', 1), ('message_id', 1), ('created_at', 1)])
 
-db.post.create_index([('status', 1), ('type', 1)])
+db.post.create_index([('status', 1)])
+db.post.create_index([('type', 1)])
+db.post.create_index([('replied_to_post_id', 1)])
+db.post.create_index([('chat.id', 1)])
 db.post.create_index([('status', 1), ('type', 1), ('chat.id', 1)])
 db.post.create_index([('status', 1), ('type', 1), ('replied_to_post_id', 1)])
 
