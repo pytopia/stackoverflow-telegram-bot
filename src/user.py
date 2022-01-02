@@ -170,6 +170,7 @@ class User:
         self.update_settings(identity_type=inline_keys.ananymous, muted_bot=False)
         self.reset()
 
+    @property
     def is_registered(self):
         """
         Check if user exists in database.

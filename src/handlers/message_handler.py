@@ -147,6 +147,7 @@ class MessageHandler(BaseHandler):
             3. Send message preview to the user.
             4. Delete previous post preview.
             """
+            print(self.stack.user.state)
             if self.stack.user.state in states.MAIN:
                 post_id = message.text
 
