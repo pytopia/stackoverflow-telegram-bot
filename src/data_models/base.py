@@ -46,8 +46,14 @@ class BasePost:
             return ObjectId(self._post_id)
         return self._post_id
 
+    @post_id.setter
+    def post_id(self, post_id: str):
+        if isinstance(post_id, str):
+            self._post_id = ObjectId(post_id)
+        else:
+            self._post_id = post_id
+
     def as_dict(self) -> dict:
-        logger.info(f'Getting post with id {self.post_id}')
         if not self.post_id:
             return {}
         post = self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
@@ -129,11 +135,16 @@ class BasePost:
         """
         post_text, post_keyboard = self.get_text_and_keyboard(preview=preview)
 
+        # If post is sent to a user, then we should automatically update
+        # it once in while to keep it fresh, for example, update number of likes.
+        auto_update = not preview
+
         # Preview to user mode or send to other users
         sent_message = self.stackbot.send_message(
             chat_id=chat_id, text=post_text,
             reply_markup=post_keyboard,
-            delete_after=False
+            delete_after=False,
+            auto_update=auto_update,
         )
 
         return sent_message

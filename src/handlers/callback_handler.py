@@ -27,7 +27,6 @@ class CallbackHandler(BaseHandler):
             # post_type (question, answer, comment, ...). When user clicks on an inline keyboard button,
             # we get the post type to know what kind of post we are dealing with.
             call_info = self.get_call_info(call)
-            print(call_info)
             post_id = call_info.get('post_id')
             if post_id is None:
                 logger.warning('post_id is None!')
@@ -36,14 +35,9 @@ class CallbackHandler(BaseHandler):
                 chat_id=call.message.chat.id, first_name=call.message.chat.first_name,
                 mongodb=self.db, stackbot=self.stack, post_id=post_id
             )
-
             # register user if not exists
             if not self.stack.user.is_registered:
                 self.stack.user.register(call.message)
-
-            # Demojize text
-            call.data = emoji.demojize(call.data)
-            call.message.text = emoji.demojize(call.message.text)
 
             # update post info
             gallery_filters = self.get_gallery_filters(
@@ -52,6 +46,10 @@ class CallbackHandler(BaseHandler):
             )
             self.stack.user.post.is_gallery = call_info.get('is_gallery', False)
             self.stack.user.post.gallery_filters = gallery_filters
+
+            # Demojize text
+            call.data = emoji.demojize(call.data)
+            call.message.text = emoji.demojize(call.message.text)
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.actions)
         def actions_callback(call):
@@ -235,7 +233,13 @@ class CallbackHandler(BaseHandler):
                 post_id=original_post_id, chat_id=self.stack.user.chat_id,
                 gallery_filters=gallery_filters, is_gallery=is_gallery
             )
-            self.stack.user.post.send_to_one(self.stack.user.chat_id)
+            # Edit message with new gallery
+            post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
+            self.stack.user.edit_message(
+                call.message.message_id,
+                text=post_text,
+                reply_markup=post_keyboard
+            )
 
         @bot.callback_query_handler(
             func=lambda call: call.data in [inline_keys.show_comments, inline_keys.show_answers]
@@ -385,4 +389,3 @@ class CallbackHandler(BaseHandler):
             reply_markup=post_keyboard
         )
 
-        logger.info(f'UPDATE: Gallery filters: {gallery_fiters}')

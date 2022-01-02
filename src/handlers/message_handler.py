@@ -1,4 +1,6 @@
+import bson
 import emoji
+from loguru import logger
 from src import constants
 from src.bot import bot
 from src.constants import keyboards, keys, post_status, post_type, states
@@ -147,11 +149,15 @@ class MessageHandler(BaseHandler):
             """
             if self.stack.user.state in states.MAIN:
                 post_id = message.text
-                self.stack.user.post = BasePost(
-                    mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
-                    post_id=post_id, chat_id=self.stack.user.chat_id,
-                )
-                self.stack.user.post.send_to_one(message.chat.id)
+
+                try:
+                    self.stack.user.post = BasePost(
+                        mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
+                        post_id=post_id, chat_id=self.stack.user.chat_id,
+                    )
+                    self.stack.user.post.send_to_one(message.chat.id)
+                except bson.errors.InvalidId:
+                    logger.warning('Invalid post id: {post_id}')
                 return
 
             elif self.stack.user.state in [states.ASK_QUESTION, states.ANSWER_QUESTION, states.COMMENT_POST]:

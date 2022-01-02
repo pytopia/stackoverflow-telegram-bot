@@ -143,7 +143,7 @@ class User:
         """
         Update user state.
 
-        :param state: User state to set.
+        :param state: New state.
         """
         self.db.users.update_one({'chat.id': self.chat_id}, {'$set': {'state': state}})
 

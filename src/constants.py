@@ -59,7 +59,7 @@ inline_keys = SimpleNamespace(
 keyboards = SimpleNamespace(
     main=create_keyboard(keys.ask_question, keys.search_questions, keys.my_data, keys.settings),
     send_post=create_keyboard(keys.cancel, keys.send_post),
-    my_data=create_keyboard(keys.my_questions, keys.my_answers, keys.my_comments, keys.back),
+    my_data=create_keyboard(keys.my_questions, keys.my_answers, keys.my_comments, keys.back, reply_row_width=3),
 )
 
 states = SimpleNamespace(

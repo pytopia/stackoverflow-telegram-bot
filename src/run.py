@@ -1,4 +1,5 @@
 import re
+import sys
 import time
 from typing import Union
 
@@ -14,6 +15,8 @@ from src.db import db
 from src.filters import IsAdmin
 from src.handlers import CallbackHandler, CommandHandler, MessageHandler
 
+logger.remove()
+logger.add(sys.stderr, format="{time} {level} {message}", level="ERROR")
 
 class StackBot:
     """
@@ -56,7 +59,8 @@ class StackBot:
         self, chat_id: int, text: str,
         reply_markup: Union[types.ReplyKeyboardMarkup, types.InlineKeyboardMarkup] = None,
         emojize: bool = True,
-        delete_after: Union[int, bool] = DELETE_BOT_MESSAGES_AFTER_TIME
+        delete_after: Union[int, bool] = DELETE_BOT_MESSAGES_AFTER_TIME,
+        auto_update: bool = False,
     ):
         """
         Send message to telegram bot having a chat_id and text_content.
@@ -70,7 +74,10 @@ class StackBot:
         text = emoji.emojize(text) if emojize else text
         message = self.bot.send_message(chat_id, text, reply_markup=reply_markup)
 
-        if (delete_after is not False) and isinstance(reply_markup, types.ReplyKeyboardMarkup):
+        if auto_update:
+            self.queue_message_update(chat_id, message.message_id)
+
+        if (type(delete_after) == int) and isinstance(reply_markup, types.ReplyKeyboardMarkup):
             # We need to keep the message which generated main keyboard so that
             # it does not go away. Otherwise, the user will be confused and won't have
             # any keyboaard to interact with.
@@ -79,11 +86,18 @@ class StackBot:
             delete_after = -1
             self.db.auto_delete.update_many(
                 {'chat_id': chat_id, 'delete_after': -1},
-                {'$set': {'delete_after': 0}}
+                {'$set': {'delete_after': 1}}
             )
+            self.queue_message_deletion(chat_id, message.message_id, delete_after)
+        elif delete_after:
+            self.queue_message_deletion(chat_id, message.message_id, delete_after)
 
-        self.queue_message_deletion(chat_id, message.message_id, delete_after)
-        self.update_callback_data(chat_id, message.message_id, reply_markup)
+        # If user is None, we don't have to update any callback data.
+        # The message is sent by the bot and not by the user.
+        if self.user is not None:
+            self.update_callback_data(chat_id, message.message_id, reply_markup)
+        else:
+            logger.warning("User is None, callback data won't be updated.")
 
         return message
 
@@ -167,12 +181,14 @@ class StackBot:
         return ObjectId(post_id)
 
     def queue_message_deletion(self, chat_id: int, message_id: int, delete_after: Union[int, bool]):
-        if not delete_after:
-            return
-
         self.db.auto_delete.insert_one({
             'chat_id': chat_id, 'message_id': message_id,
             'delete_after': delete_after, 'created_at': time.time(),
+        })
+
+    def queue_message_update(self, chat_id: int, message_id: int):
+        self.db.auto_update.insert_one({
+            'chat_id': chat_id, 'message_id': message_id, 'created_at': time.time(),
         })
 
     def update_callback_data(
@@ -180,7 +196,14 @@ class StackBot:
         reply_markup: Union[types.ReplyKeyboardMarkup, types.InlineKeyboardMarkup]
     ):
         if reply_markup and isinstance(reply_markup, types.InlineKeyboardMarkup):
-            logger.info(f'Updating callback data for message {message_id}')
+
+            # If the reply_markup is an inline keyboard with actions button, it is the main keyboard and
+            # we update its data once in a while to keep it fresh with number of likes, etc.
+            buttons = []
+            for sublist in reply_markup.keyboard:
+                sub_buttons = map(lambda button: emoji.demojize(button.text), sublist)
+                buttons.extend(list(sub_buttons))
+
             self.db.callback_data.update_one(
                 {
                     'chat_id': chat_id,
@@ -191,6 +214,14 @@ class StackBot:
                     '$set': {
                         'is_gallery': self.user.post.is_gallery,
                         'gallery_filters': self.user.post.gallery_filters,
+
+                        # We need the buttons to check to not update it asynchroneously
+                        # with the wrong keys.
+                        'buttons': buttons,
+
+                        # We need the date of the callback data update to get the current active post on
+                        # the gallery for refreshing post info such as likes, answers, etc.
+                        'created_at': time.time()
                     }
                 },
                 upsert=True
