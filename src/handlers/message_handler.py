@@ -66,7 +66,7 @@ class MessageHandler(BaseHandler):
             3. Delete previous bot messages.
             """
             self.stack.user.clean_preview()
-            self.stack.user.send_message(message.text, reply_markup=keyboards.main)
+            self.stack.user.send_message(constants.BACK_TO_HOME_MESSAGE, reply_markup=keyboards.main)
             self.stack.user.reset()
 
         @self.stack.bot.message_handler(text=[keys.send_post])

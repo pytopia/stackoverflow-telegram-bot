@@ -141,6 +141,7 @@ IDENTITY_TYPE_NOT_SET_WARNING = (
     'Please set it in your settings or Telegram.'
 )
 MY_DATA_MESSAGE = ':thought_balloon: Select your data type from the menu:'
+BACK_TO_HOME_MESSAGE = ':house: Back to Home'
 
 # Post Templates
 POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."
