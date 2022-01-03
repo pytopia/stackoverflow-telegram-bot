@@ -4,10 +4,10 @@ from typing import List, Tuple
 
 from bs4 import BeautifulSoup
 from bson.objectid import ObjectId
-from loguru import logger
 from src import constants
 from src.constants import (SUPPORTED_CONTENT_TYPES, inline_keys, post_status,
                            post_type)
+from src.data import DATA_DIR
 from src.utils.common import (human_readable_size, human_readable_unix_time,
                               json_encoder)
 from src.utils.keyboard import create_keyboard
@@ -34,6 +34,8 @@ class BasePost:
         self.gallery_filters = gallery_filters
 
         self.emoji = constants.EMOJI.get(self.post_type)
+        self.html_icon = constants.HTML_ICON.get(self.post_type)
+
         self.collection = self.db.post
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
 
@@ -122,7 +124,15 @@ class BasePost:
         if not post:
             return
 
-        self.collection.update_one({'_id': post['_id']}, {'$set': {'status': post_status.OPEN}})
+        # Stor raw text for search, keywords, similarity, etc.
+        post_text = ""
+        for content in post['content']:
+            if content['content_type'] == 'text' and content['text']:
+                post_text += f"{content['text']}\n"
+
+        self.collection.update_one({'_id': post['_id']}, {'$set': {
+            'status': post_status.OPEN, 'text': post_text,
+        }})
         return post['_id']
 
     def send_to_one(self, chat_id: str, preview: bool = False) -> types.Message:
@@ -307,6 +317,10 @@ class BasePost:
             keys.append(next_key)
             callback_data.append(next_key)
 
+            # add gallery export key
+            keys.append(inline_keys.export_gallery)
+            callback_data.append(inline_keys.export_gallery)
+
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
 
@@ -440,3 +454,24 @@ class BasePost:
     @staticmethod
     def remove_non_json_data(json_data):
         return json.loads(json.dumps(json_data, default=json_encoder))
+
+    def export(self, format='html'):
+        """
+        Export post as html
+        """
+        post = self.as_dict()
+        if format == 'html':
+            with open(DATA_DIR / 'post_card.html', 'r') as f:
+                template_html = f.read()
+
+            replace_map = {
+                'emoji': self.html_icon,
+                'post_id': post['_id'],
+                'post_type': post['type'].title(),
+                'text': self.get_text(prettify=False, truncate=False, preview=False),
+                'date': human_readable_unix_time(post['date']),
+            }
+            for key, value in replace_map.items():
+                template_html = template_html.replace(r'{{{' + key + r'}}}', str(value))
+
+            return template_html

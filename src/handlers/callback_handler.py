@@ -3,6 +3,8 @@ import re
 import emoji
 from bson.objectid import ObjectId
 from loguru import logger
+from telebot.types import Chat
+from src.data import DATA_DIR
 from src import constants
 from src.bot import bot
 from src.constants import (inline_keys, keyboards, post_status, post_type,
@@ -76,11 +78,11 @@ class CallbackHandler(BaseHandler):
             3. Send start typing message.
             """
             self.answer_callback_query(call.id, text=call.data)
+            current_post_type = post_type.COMMENT if call.data == inline_keys.comment else post_type.ANSWER
 
             self.stack.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
             self.stack.user.track(replied_to_post_id=self.stack.user.post.post_id)
 
-            current_post_type = post_type.COMMENT if call.data == inline_keys.comment else post_type.ANSWER
             self.stack.user.send_message(
                 constants.POST_START_MESSAGE.format(
                     first_name=self.stack.user.first_name,
@@ -320,6 +322,25 @@ class CallbackHandler(BaseHandler):
             text, keyboard = self.stack.user.post.get_text_and_keyboard(truncate=truncate, preview=preview)
             self.stack.user.edit_message(call.message.message_id, text=text, reply_markup=keyboard)
 
+        @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.export_gallery])
+        def export_gallery(call):
+            """
+            Show more or less text for a long post.
+            """
+            self.answer_callback_query(call.id, text=call.data)
+            chat_id = self.stack.user.chat_id
+            gallery_filters = self.get_call_info(call)['gallery_filters']
+
+            # Send html file to user
+            file_content = self.export_gallery(gallery_filters=gallery_filters, format='html')
+            with open(DATA_DIR / 'export' / f'{chat_id}.html', 'w') as f:
+                f.write(file_content)
+
+            with open(DATA_DIR / 'export' / f'{chat_id}.html', 'r') as f:
+                self.stack.bot.send_document(
+                    self.stack.user.chat_id, f
+                )
+
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
             """
@@ -393,3 +414,27 @@ class CallbackHandler(BaseHandler):
             reply_markup=post_keyboard
         )
 
+    def export_gallery(self, gallery_filters, format='html'):
+        """
+        Export gallery data.
+        """
+        user_identity = self.stack.user.identity
+        if format == 'html':
+            with open(DATA_DIR / 'posts.html') as f:
+                template_html = f.read()
+
+            BODY = ''
+            num_documents = self.db.post.count_documents(gallery_filters)
+            for ind, doc in enumerate(self.db.post.find(gallery_filters)):
+                post = BasePost(
+                    mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
+                    post_id=doc['_id'], chat_id=self.stack.user.chat_id
+                )
+                post_text = post.export(format=format)
+                post_text = post_text.replace(r'{{{user_identity}}}', str(user_identity))
+                post_text = post_text.replace(r'{{{post_number}}}', str(num_documents - ind))
+
+                BODY += post_text
+                BODY += '\n'
+
+            return template_html.replace(r'{{{POSTS-CARDS}}}', BODY)

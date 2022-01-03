@@ -54,6 +54,7 @@ inline_keys = SimpleNamespace(
     first_page=':white_small_square:',
     show_more=u'\u2193 Show More',
     show_less=u'\u2191 Show Less',
+    export_gallery=':inbox_tray: Export'
 )
 
 keyboards = SimpleNamespace(
@@ -101,6 +102,12 @@ EMOJI = {
     post_type.QUESTION: ':red_question_mark:',
     post_type.ANSWER: ':bright_button:',
     post_type.COMMENT: ':speech_balloon:',
+}
+
+HTML_ICON = {
+    post_type.QUESTION: '&#10067;',
+    post_type.ANSWER: '&#11088;',
+    post_type.COMMENT: '&#128172;',
 }
 
 OPEN_POST_ONLY_ACITONS = [

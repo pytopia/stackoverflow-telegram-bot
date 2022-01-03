@@ -1,0 +1,15 @@
+<div class="card">
+    <div class="card-body">
+        <h3 class="card-title">{{{emoji}}} {{{post_type}}} #{{{post_number}}}</h3>
+        <h5 class="card-title">&#128100; {{{user_identity}}}</h5>
+        <hr/>
+        <p class="card-text"> {{{text}}}</p>
+        <a href="https://t.me/pystackoverflow_bot?start=answer_{{{post_id}}}" class="btn btn-success"><i class="fas fa-sun"></i> Answer</a>
+        <a href="https://t.me/pystackoverflow_bot?start=comment_{{{post_id}}}" class="btn btn-info"><i class="far fa-comment-dots"></i> Comment</a>
+    </div>
+    <div class="card-footer">
+        <small class="text-muted"><i class="far fa-calendar-alt"></i> {{{date}}}</small>
+        <br>
+        <small class="text-muted"><i class="fas fa-qrcode"></i> {{{post_id}}}</small>
+    </div>
+</div>

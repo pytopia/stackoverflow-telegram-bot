@@ -29,12 +29,13 @@ class StackBot:
         self.bot = telebot
         self.db = mongodb
 
-        # add custom filters
+        # Add custom filters
         self.bot.add_custom_filter(IsAdmin())
         self.bot.add_custom_filter(custom_filters.TextMatchFilter())
         self.bot.add_custom_filter(custom_filters.TextStartsFilter())
 
-        # register handlers
+        # User (user can be None when bot is not used by a user, but
+        # used for sending messages in general)
         self.user = None
 
         # Note: The order of handlers matters as the first
