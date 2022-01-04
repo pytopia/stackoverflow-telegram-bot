@@ -419,22 +419,27 @@ class CallbackHandler(BaseHandler):
         Export gallery data.
         """
         user_identity = self.stack.user.identity
-        if format == 'html':
-            with open(DATA_DIR / 'posts.html') as f:
-                template_html = f.read()
+        if format != 'html':
+            return
 
-            BODY = ''
-            num_documents = self.db.post.count_documents(gallery_filters)
-            for ind, doc in enumerate(self.db.post.find(gallery_filters)):
-                post = BasePost(
-                    mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
-                    post_id=doc['_id'], chat_id=self.stack.user.chat_id
-                )
-                post_text = post.export(format=format)
-                post_text = post_text.replace(r'{{{user_identity}}}', str(user_identity))
-                post_text = post_text.replace(r'{{{post_number}}}', str(num_documents - ind))
+        with open(DATA_DIR / 'posts.html') as f:
+            template_html = f.read()
 
-                BODY += post_text
-                BODY += '\n'
+        BODY = ''
+        num_documents = self.db.post.count_documents(gallery_filters)
+        for ind, doc in enumerate(self.db.post.find(gallery_filters)):
+            BODY += self.post_to_html(doc['_id'], num_documents - ind, user_identity)
 
-            return template_html.replace(r'{{{POSTS-CARDS}}}', BODY)
+        return template_html.replace(r'{{{POSTS-CARDS}}}', BODY)
+
+    def post_to_html(self, post_id, post_number, user_identity):
+        post = BasePost(
+            mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
+            post_id=post_id, chat_id=self.stack.user.chat_id
+        )
+        post_html = post.export(format='html')
+        post_html = post_html.replace(r'{{{user_identity}}}', str(user_identity))
+        post_html = post_html.replace(r'{{{post_number}}}', str(post_number))
+        post_html += '\n'
+
+        return post_html
