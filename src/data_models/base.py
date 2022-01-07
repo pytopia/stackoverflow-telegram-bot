@@ -91,7 +91,7 @@ class BasePost:
             elif content['content_type'] != 'text':
                 attachments.append(content)
 
-        characters_left = constants.MESSAGE_CHAR_LIMIT[current_post.get('type', self.post_type)] - len(text)
+        characters_left = constants.POST_CHAR_LIMIT[current_post.get('type', self.post_type)] - len(text)
         if characters_left < 0:
             message_text = constants.MAX_NUMBER_OF_CHARACTERS_MESSAGE.format(
                 num_extra_characters=abs(characters_left)
@@ -237,6 +237,7 @@ class BasePost:
 
         # prettify message with other information such as sender, post status, etc.
         post_text = post_text.strip()
+        untrucated_post_text = post_text
 
         # Splits one string into multiple strings, with a maximum amount of `chars_per_string` (max. 4096)
         # Splits by last '\n', '. ' or ' ' in exactly this priority.
@@ -257,10 +258,12 @@ class BasePost:
         # Prettify adds extra information such as post type, from_user, date, etc.
         # Otherwise only raw text is returned.
         if prettify:
-            post_type = post['type'].title()
+            post_type=post['type'].title()
             if preview:
+                num_characters_left = constants.POST_CHAR_LIMIT[post['type']] - len(untrucated_post_text)
                 post_text = constants.POST_PREVIEW_MESSAGE.format(
-                    post_text=post_text, post_type=post_type, post_id=post['_id']
+                    post_text=post_text, post_type=post_type, post_id=post['_id'],
+                    num_characters_left=num_characters_left
                 )
             else:
                 from_user = self.get_post_owner_identity()

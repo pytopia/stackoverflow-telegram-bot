@@ -123,7 +123,7 @@ OPEN_POST_ONLY_ACITONS = [
 # Message Limits
 
 # Posts longer than this are not allowed
-MESSAGE_CHAR_LIMIT = {
+POST_CHAR_LIMIT = {
     post_types.QUESTION: 2500,
     post_types.ANSWER: 2500,
     post_types.COMMENT: 500,
@@ -170,6 +170,7 @@ POST_PREVIEW_MESSAGE = (
     '{post_text}\n'
     f'{"_" * 10}\n'
     f'When done, click <strong>{keys.send_post}</strong>.\n\n'
+    ':memo: <code>{num_characters_left}</code> characters left.\n'
     ':ID_button: <code>{post_id}</code>'
 )
 SEND_POST_TO_ALL_MESSAGE = (
