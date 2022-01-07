@@ -21,6 +21,7 @@ keys = SimpleNamespace(
     my_questions=':red_question_mark: My Questions',
     my_answers=':bright_button: My Answers',
     my_comments=':speech_balloon: My Comments',
+    my_bookmarks=':pushpin: My Bookmarks',
 )
 
 inline_keys = SimpleNamespace(
@@ -55,13 +56,17 @@ inline_keys = SimpleNamespace(
     first_page=':white_small_square:',
     show_more=u'\u2193 Show More',
     show_less=u'\u2191 Show Less',
-    export_gallery=':inbox_tray: Export'
+    export_gallery=':inbox_tray: Export',
+    bookmark=':pushpin: Bookmark',
+    unbookmark=':pushpin: Unbookmark',
 )
 
 keyboards = SimpleNamespace(
     main=create_keyboard(keys.ask_question, keys.search_questions, keys.my_data, keys.settings),
     send_post=create_keyboard(keys.cancel, keys.send_post),
-    my_data=create_keyboard(keys.my_questions, keys.my_answers, keys.my_comments, keys.back, reply_row_width=3),
+    my_data=create_keyboard(
+        keys.my_questions, keys.my_answers, keys.my_comments, keys.my_bookmarks,
+        keys.back, reply_row_width=2),
 )
 
 states = SimpleNamespace(

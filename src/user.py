@@ -1,11 +1,11 @@
-from typing import Union
+from typing import Any, Union
 
 from loguru import logger
 from telebot import types
 
 from src import constants
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
-                           keyboards, post_types, states, post_status)
+                           keyboards, post_status, post_types, states)
 from src.data_models import Answer, Comment, Question
 from src.data_models.base import BasePost
 
@@ -245,3 +245,19 @@ class User:
             num_questions=num_questions, num_open_questions=num_open_questions,
             num_answers=num_answers, num_accepted_answers=num_accepted_answers, num_comments=num_comments
         )
+
+    def toggle_user_field(self, field: str, field_value: Any) -> None:
+        """
+        Pull/Push to the user collection a value in key field.
+        This can be used for bookmarks for example. We push post_id (value) to the user bookmarks field.
+
+        :param key: Collection key to be toggled (push/pull)
+        """
+        exists_flag = self.db.users.find_one({'chat.id': self.chat_id, field: field_value})
+
+        if exists_flag:
+            self.db.users.update_one({'chat.id': self.chat_id}, {'$pull': {field: field_value}})
+        else:
+            self.db.users.update_one(
+                {'chat.id': self.chat_id}, {'$addToSet': {field: field_value}}
+            )

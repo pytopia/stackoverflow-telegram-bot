@@ -1,6 +1,6 @@
 import concurrent.futures
 import json
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 from bs4 import BeautifulSoup
 from bson.objectid import ObjectId
@@ -382,19 +382,19 @@ class BasePost:
         """
         return self.as_dict().get('followers', [])
 
-    def toggle(self, key: str) -> None:
+    def toggle_post_field(self, field: str, field_value: Any) -> None:
         """
-        Pull/Push use to the collection key of the post.
+        Pull/Push to the collection field of the post.
 
-        :param key: Collection key to be toggled (push/pull)
+        :param field: Collection field to be toggled (push/pull)
         """
-        exists_flag = self.collection.find_one({'_id': ObjectId(self.post_id), key: self.chat_id})
+        exists_flag = self.collection.find_one({'_id': ObjectId(self.post_id), field: field_value})
 
         if exists_flag:
-            self.collection.update_one({'_id': ObjectId(self.post_id)}, {'$pull': {key: self.chat_id}})
+            self.collection.update_one({'_id': ObjectId(self.post_id)}, {'$pull': {field: field_value}})
         else:
             self.collection.update_one(
-                {'_id': ObjectId(self.post_id)}, {'$addToSet': {key: self.chat_id}}
+                {'_id': ObjectId(self.post_id)}, {'$addToSet': {field: field_value}}
             )
 
     def follow(self):
@@ -403,7 +403,7 @@ class BasePost:
 
         :param post_id: Unique id of the post
         """
-        self.toggle('followers')
+        self.toggle_post_field('followers', self.chat_id)
 
     def like(self):
         """
@@ -411,7 +411,15 @@ class BasePost:
 
         :param post_id: Unique id of the post
         """
-        self.toggle('likes')
+        self.toggle_post_field('likes', self.chat_id)
+
+    def bookmark(self):
+        """
+        Like post with post_id or unlike post if already liked.
+
+        :param post_id: Unique id of the post
+        """
+        self.toggle_post_field('bookmarked_by', self.chat_id)
 
     def get_actions_keys_and_owner(self) -> Tuple[List, str]:
         """
@@ -457,6 +465,13 @@ class BasePost:
                 elif current_status == post_status.CLOSED:
                     keys.append(inline_keys.open)
 
+        # Check if post is bookmarked by the user
+        bookmarked = self.db.users.find_one({'chat.id': self.chat_id, 'bookmarks': self.post_id})
+        if bookmarked:
+            keys.append(inline_keys.unbookmark)
+        else:
+            keys.append(inline_keys.bookmark)
+
         return keys, owner_chat_id
 
     def remove_closed_post_actions(self, keys) -> List:
@@ -474,7 +489,7 @@ class BasePost:
 
         return new_keys
 
-    def toggle_field_values(self, field: str, values: List):
+    def switch_field_between_multiple_values(self, field: str, values: List):
         """
         Close/Open post.
         Nobody can comment/answer to a closed post.

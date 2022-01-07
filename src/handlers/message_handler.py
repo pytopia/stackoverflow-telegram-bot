@@ -113,19 +113,25 @@ class MessageHandler(BaseHandler):
             gallery_filters = {'type': post_types.QUESTION, 'status': post_status.OPEN}
             self.send_gallery(gallery_filters=gallery_filters)
 
-        @self.stackbot.bot.message_handler(text=[keys.my_questions, keys.my_answers, keys.my_comments])
-        def my_questions(message):
+        @self.stackbot.bot.message_handler(text=[
+            keys.my_questions, keys.my_answers, keys.my_comments, keys.my_bookmarks
+        ])
+        def send_user_data(message):
             """
             User asks for all questions to search through.
             """
-            if message.text == keys.my_questions:
-                filter_type = post_types.QUESTION
-            elif message.text == keys.my_answers:
-                filter_type = post_types.ANSWER
-            elif message.text == keys.my_comments:
-                filter_type = post_types.COMMENT
+            if message.text == keys.my_bookmarks:
+                post_ids = self.db.users.find_one({'chat.id': message.chat.id}).get('bookmarks', [])
+                gallery_filters = {'_id': {'$in': post_ids}}
+            else:
+                if message.text == keys.my_questions:
+                    filter_type = post_types.QUESTION
+                elif message.text == keys.my_answers:
+                    filter_type = post_types.ANSWER
+                elif message.text == keys.my_comments:
+                    filter_type = post_types.COMMENT
+                gallery_filters = {'type': filter_type, 'chat.id': message.chat.id}
 
-            gallery_filters = {'type': filter_type, 'chat.id': message.chat.id}
             self.send_gallery(gallery_filters=gallery_filters)
 
         @self.stackbot.bot.message_handler(text=[keys.my_data])

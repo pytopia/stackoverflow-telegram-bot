@@ -111,7 +111,10 @@ class CallbackHandler(BaseHandler):
                 self.stackbot.user.edit_message(call.message.message_id, reply_markup=self.stackbot.get_settings_keyboard())
 
         @bot.callback_query_handler(
-            func=lambda call: call.data in [inline_keys.like, inline_keys.follow, inline_keys.unfollow]
+            func=lambda call: call.data in [
+                inline_keys.like,
+                inline_keys.follow, inline_keys.unfollow,
+            ]
         )
         def toggle_callback(call):
             """
@@ -139,7 +142,7 @@ class CallbackHandler(BaseHandler):
         @bot.callback_query_handler(
             func=lambda call: call.data in [inline_keys.open, inline_keys.close, inline_keys.delete, inline_keys.undelete]
         )
-        def toggle_field_values_callback(call):
+        def toggle_post_field_values_callback(call):
             """
             Open/Close Delete/Undelete or any other toggling between two values.
             Open means that the post is open for new answers, comments, ...
@@ -162,7 +165,21 @@ class CallbackHandler(BaseHandler):
                     other_status = post_status.OPEN
                 values = list({post_status.DELETED, other_status})
 
-            self.stackbot.user.post.toggle_field_values(field=field, values=values)
+            self.stackbot.user.post.switch_field_between_multiple_values(field=field, values=values)
+            self.stackbot.user.edit_message(
+                call.message.message_id,
+                text=self.stackbot.user.post.get_text(),
+                reply_markup=self.stackbot.user.post.get_actions_keyboard()
+            )
+
+        @bot.callback_query_handler(
+            func=lambda call: call.data in [inline_keys.bookmark, inline_keys.unbookmark]
+        )
+        def toggle_user_field_values_callback(call):
+            """
+            """
+            self.answer_callback_query(call.id, text=call.data)
+            self.stackbot.user.toggle_user_field(field='bookmarks', field_value=self.stackbot.user.post.post_id)
             self.stackbot.user.edit_message(
                 call.message.message_id,
                 text=self.stackbot.user.post.get_text(),
@@ -174,6 +191,7 @@ class CallbackHandler(BaseHandler):
         )
         def accept_answer(call):
             """
+            Accept/Unaccept answer callback.
             """
             self.answer_callback_query(call.id, text=call.data)
 
