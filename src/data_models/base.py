@@ -28,9 +28,6 @@ class BasePost:
         self.chat_id = chat_id
         self.supported_content_types = SUPPORTED_CONTENT_TYPES
 
-        # Post content as a dictionary
-        self.post_content = None
-
         # post_id has setter and getter to convert it to ObjectId in case it is a string
         self._post_id = post_id
         self.is_gallery = is_gallery
@@ -62,11 +59,7 @@ class BasePost:
         if not self.post_id:
             return {}
 
-        if self.post_content:
-            return self.post_content
-
-        self.post_content = self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
-        return self.post_content
+        return self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
 
     @property
     def owner_chat_id(self) -> str:
