@@ -54,7 +54,7 @@ class User:
 
         post = self.db.post.find_one({'_id': self.post_id}) or {}
         args = dict(db=self.db, stackbot=self.stackbot, chat_id=self.chat_id, post_id=self.post_id)
-        self._post = self.get_post_handler(self.state, post['type'])(**args)
+        self._post = self.get_post_handler(self.state, post.get('type'))(**args)
 
         return self._post
 

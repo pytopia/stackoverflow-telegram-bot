@@ -120,17 +120,28 @@ OPEN_POST_ONLY_ACITONS = [
     inline_keys.comment, inline_keys.edit, inline_keys.answer,
 ]
 
-# Message Character Limit
+# Message Limits
 
 # Posts longer than this are not allowed
 MESSAGE_CHAR_LIMIT = {
-    post_types.QUESTION: 4096,
-    post_types.ANSWER: 4096,
+    post_types.QUESTION: 2500,
+    post_types.ANSWER: 2500,
     post_types.COMMENT: 500,
 }
+ATTACHMENT_LIMIT = 3
+MAX_NUMBER_OF_CHARACTERS_MESSAGE = (
+    ':cross_mark: Max number of characters reached. '
+    'You made {num_extra_characters} extra characters. '
+    '<strong>Last message is ignored.</strong>'
+)
+MAX_NUMBER_OF_ATTACHMENTS_MESSAGE = (
+    ':cross_mark: Max number of attachments reached. '
+    f'You can have up to {ATTACHMENT_LIMIT} attachments only.'
+)
 
 # This is used for show more button
 MESSAGE_SPLIT_CHAR_LIMIT = 250
+
 
 # Auto delete user and bot messages after a period of time
 DELETE_BOT_MESSAGES_AFTER_TIME = 1

@@ -79,6 +79,31 @@ class BasePost:
     def post_status(self) -> str:
         return self.as_dict().get('status')
 
+    def check_prep_post_limits(self, current_post, new_content):
+        # Get current content (previous content + new content)
+        current_content = current_post.get('content', []) + [new_content]
+
+        # Get current content text and attachments
+        text, attachments = '', []
+        for content in current_content:
+            if content['content_type'] == 'text' and content['text']:
+                text += f"{content['text']}\n"
+            elif content['content_type'] != 'text':
+                attachments.append(content)
+
+        characters_left = constants.MESSAGE_CHAR_LIMIT[current_post.get('type', self.post_type)] - len(text)
+        if characters_left < 0:
+            message_text = constants.MAX_NUMBER_OF_CHARACTERS_MESSAGE.format(
+                num_extra_characters=abs(characters_left)
+            )
+            self.stackbot.send_message(self.chat_id, message_text)
+            return False
+        elif len(attachments) > constants.ATTACHMENT_LIMIT:
+            self.stackbot.send_message(self.chat_id, constants.MAX_NUMBER_OF_ATTACHMENTS_MESSAGE)
+            return False
+
+        return True
+
     def update(self, message, replied_to_post_id: str = None) -> str:
         """
         In ask_post state, the user can send a post in multiple messages.
@@ -105,6 +130,12 @@ class BasePost:
         # removing non-json-serializable data
         content = self.remove_non_json_data(content)
 
+        # Check post limitations (number of characters, number of attachments)
+        current_post = self.db.post.find_one({'chat.id': self.chat_id, 'status': post_status.PREP}) or {}
+        if not self.check_prep_post_limits(current_post=current_post, new_content=content):
+            self.post_id = current_post['_id']
+            return
+
         # Save to database
         set_data = {'date': message.date, 'type': self.post_type, 'replied_to_post_id': replied_to_post_id}
         output = self.collection.update_one({'chat.id': message.chat.id, 'status': post_status.PREP}, {
@@ -112,12 +143,9 @@ class BasePost:
             '$set': set_data,
         }, upsert=True)
 
-        _id = output.upserted_id or self.collection.find_one({
+        self.post_id = output.upserted_id or self.collection.find_one({
             'chat.id': message.chat.id, 'status': post_status.PREP
         })['_id']
-
-        self.post_id = _id
-        return _id
 
     def submit(self) -> str:
         """
