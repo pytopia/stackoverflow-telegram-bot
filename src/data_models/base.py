@@ -23,24 +23,23 @@ class BasePost:
         is_gallery: bool = False, gallery_filters=None
     ):
         self.db = db
+        self.collection = self.db.post
         self.stackbot = stackbot
+        self.chat_id = chat_id
+        self.supported_content_types = SUPPORTED_CONTENT_TYPES
+
+        # Post content as a dictionary
+        self.post_content = None
 
         # post_id has setter and getter to convert it to ObjectId in case it is a string
         self._post_id = post_id
-
-        self.chat_id = chat_id
-
         self.is_gallery = is_gallery
         self.gallery_filters = gallery_filters
 
+        # Show more and show less buttons
+        self.post_text_length_button = None
         self._emoji = constants.EMOJI.get(self.post_type)
         self.html_icon = constants.HTML_ICON.get(self.post_type)
-
-        self.collection = self.db.post
-        self.supported_content_types = SUPPORTED_CONTENT_TYPES
-
-        self.post_text_length_button = None
-        self.is_splitted = True
 
     @property
     def emoji(self):
@@ -63,8 +62,11 @@ class BasePost:
         if not self.post_id:
             return {}
 
-        post = self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
-        return post
+        if self.post_content:
+            return self.post_content
+
+        self.post_content = self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
+        return self.post_content
 
     @property
     def owner_chat_id(self) -> str:

@@ -24,9 +24,9 @@ class BaseHandler(ABC):
         """
         muted_bot = self.stackbot.user.settings.get('muted_bot')
         if muted_bot:
-            keys = [inline_keys.change_identity, inline_keys.unmute]
+            keys = [inline_keys.change_identity]
         else:
-            keys = [inline_keys.change_identity, inline_keys.mute]
+            keys = [inline_keys.change_identity]
 
         return create_keyboard(*keys, is_inline=True)
 
@@ -38,5 +38,6 @@ class BaseHandler(ABC):
             first_name=self.stackbot.user.first_name,
             username=self.stackbot.user.username,
             identity=self.stackbot.user.identity,
+            **self.stackbot.user.stats(),
         )
         return text

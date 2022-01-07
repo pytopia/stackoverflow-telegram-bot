@@ -5,7 +5,7 @@ from telebot import types
 
 from src import constants
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
-                           keyboards, post_types, states)
+                           keyboards, post_types, states, post_status)
 from src.data_models import Answer, Comment, Question
 from src.data_models.base import BasePost
 
@@ -229,4 +229,19 @@ class User:
         self.db.users.update_one(
             {'chat.id': self.chat_id},
             {'$set': settings}
+        )
+
+    def stats(self):
+        num_questions = self.db.post.count_documents({'chat.id': self.chat_id, 'type': post_types.QUESTION})
+        num_open_questions = self.db.post.count_documents(
+            {'chat.id': self.chat_id, 'type': post_types.QUESTION, 'status': post_status.OPEN}
+        )
+        num_answers = self.db.post.count_documents({'chat.id': self.chat_id, 'type': post_types.ANSWER})
+        num_accepted_answers = self.db.post.count_documents({'chat.id': self.chat_id, 'type': post_types.ANSWER, 'accepted': True})
+
+        num_comments = self.db.post.count_documents({'chat.id': self.chat_id, 'type': post_types.COMMENT})
+
+        return dict(
+            num_questions=num_questions, num_open_questions=num_open_questions,
+            num_answers=num_answers, num_accepted_answers=num_accepted_answers, num_comments=num_comments
         )

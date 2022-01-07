@@ -1,6 +1,6 @@
 from bson.objectid import ObjectId
 from src import constants
-from src.constants import inline_keys, post_status
+from src.constants import inline_keys, post_status, post_types
 from src.data_models.base import BasePost
 from src.utils.keyboard import create_keyboard
 from telebot import types
@@ -96,13 +96,22 @@ class Answer(BasePost):
         if question.get('accepted_answer') == answer['_id']:
             self.db.post.update_one(
                 {'_id': question['_id']},
-                {'$set': {'status': post_status.OPEN, 'accepted_answer': None}}
+                {'$set': {'status': post_status.OPEN}},
+                {'$unset': {'accepted_answer': 1}}
             )
+            self.db.post.update_one({'_id': answer['_id']}, {'$unset': {'accepted': 1}})
         else:
+            # Add accepted answer to question
             self.db.post.update_one(
                 {'_id': question['_id']},
                 {'$set': {'status': post_status.RESOLVED, 'accepted_answer': answer['_id']}}
             )
+
+            # Unaccept the previous accepted answer
+            self.db.post.update_one({'accepted': True, 'type': post_types.ANSWER}, {'$unset': {'accepted': 1}})
+
+            # Accept the new answer
+            self.db.post.update_one({'_id': answer['_id']}, {'$set': {'accepted': True}})
 
             # Send to the answer owner that the question is accepted
             answer_owner_chat_id = answer['chat']['id']

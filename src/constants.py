@@ -205,8 +205,10 @@ UNSUPPORTED_CONTENT_TYPE_MESSAGE = (
 SETTINGS_START_MESSAGE = (
     ':gear: <strong>Settings</strong>\n'
     ':bust_in_silhouette: {first_name} ({username})\n\n'
-
-    ':smiling_face_with_sunglasses: Identity: <strong>{identity}</strong>\n\n'
+    ':red_question_mark: <strong>{num_questions}</strong> (<strong>{num_open_questions}</strong> Open)\n'
+    ':bright_button: <strong>{num_answers}</strong> (<strong>{num_accepted_answers}</strong> Accepted Answer)\n'
+    ':speech_balloon: <strong>{num_comments}</strong>\n\n'
+    ':smiling_face_with_sunglasses: Identity: <strong>{identity}</strong>'
 )
 
 # Gallery Templates
