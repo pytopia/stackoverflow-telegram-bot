@@ -81,15 +81,11 @@ class BasePost:
 
     def check_prep_post_limits(self, current_post, new_content):
         # Get current content (previous content + new content)
-        current_content = current_post.get('content', []) + [new_content]
+        current_post['content'] = current_post.get('content', [])
+        current_post['content'].append(new_content)
 
         # Get current content text and attachments
-        text, attachments = '', []
-        for content in current_content:
-            if content['content_type'] == 'text' and content['text']:
-                text += f"{content['text']}\n"
-            elif content['content_type'] != 'text':
-                attachments.append(content)
+        text, attachments = self.get_post_text_and_attachments(current_post)
 
         characters_left = constants.POST_CHAR_LIMIT[current_post.get('type', self.post_type)] - len(text)
         if characters_left < 0:
@@ -154,14 +150,15 @@ class BasePost:
         :return: Unique id of the stored post in db.
         """
         post = self.collection.find_one({'chat.id': self.chat_id, 'status': post_status.PREP})
-        if not post:
-            return
 
         # Stor raw text for search, keywords, similarity, etc.
-        post_text = ""
-        for content in post['content']:
-            if content['content_type'] == 'text' and content['text']:
-                post_text += f"{content['text']}\n"
+        post_text = self.get_post_text(post)
+        if len(post_text) < constants.MIN_POST_TEXT_LENGTH:
+            self.stackbot.send_message(self.chat_id, constants.MIN_POST_TEXT_LENGTH_MESSAGE)
+            return
+
+        if not post:
+            return
 
         self.collection.update_one({'_id': post['_id']}, {'$set': {
             'status': post_status.OPEN, 'text': post_text,
@@ -215,6 +212,29 @@ class BasePost:
         chat_ids = list(map(lambda user: user['chat']['id'], self.db.users.find()))
         return self.send_to_many(chat_ids)
 
+    @staticmethod
+    def get_post_text(post):
+        post_text = ""
+        for content in post.get('content', []):
+            if content['content_type'] == 'text' and content['text']:
+                post_text += f"{content['text']}\n"
+
+        return post_text.strip()
+
+    @staticmethod
+    def get_post_attachments(post):
+        attachments = []
+        for content in post.get('content', []):
+            if content['content_type'] == 'text':
+                continue
+            attachments.append(content)
+
+        return attachments
+
+    @staticmethod
+    def get_post_text_and_attachments(post):
+        return BasePost.get_post_text(post), BasePost.get_post_attachments(post)
+
     def get_text(self, preview: bool = False, prettify: bool = True, truncate: bool = True) -> str:
         """
         Get post text.
@@ -226,18 +246,14 @@ class BasePost:
         :return: Post text.
         """
         post = self.as_dict()
-        post_text = ""
-        for content in post['content']:
-            if content['content_type'] == 'text' and content['text']:
-                post_text += f"{content['text']}\n"
+
+        # prettify message with other information such as sender, post status, etc.
+        post_text = self.get_post_text(post)
+        untrucated_post_text = post_text
 
         # Empty post text is allowed (User can send an empty post with attachments)
         if not post_text:
             post_text = constants.EMPTY_QUESTION_TEXT_MESSAGE
-
-        # prettify message with other information such as sender, post status, etc.
-        post_text = post_text.strip()
-        untrucated_post_text = post_text
 
         # Splits one string into multiple strings, with a maximum amount of `chars_per_string` (max. 4096)
         # Splits by last '\n', '. ' or ' ' in exactly this priority.
@@ -258,7 +274,7 @@ class BasePost:
         # Prettify adds extra information such as post type, from_user, date, etc.
         # Otherwise only raw text is returned.
         if prettify:
-            post_type=post['type'].title()
+            post_type = post['type'].title()
             if preview:
                 num_characters_left = constants.POST_CHAR_LIMIT[post['type']] - len(untrucated_post_text)
                 post_text = constants.POST_PREVIEW_MESSAGE.format(
@@ -293,11 +309,12 @@ class BasePost:
 
         # add attachments
         for content in post['content']:
-            if content['content_type'] != 'text':
-                file_name = content.get('file_name') or content['content_type']
-                file_size = human_readable_size(content['file_size'])
-                keys.append(f"{file_name} - {file_size}")
-                callback_data.append(content['file_unique_id'])
+            if content['content_type'] == 'text':
+                continue
+            file_name = content.get('file_name') or content['content_type']
+            file_size = human_readable_size(content['file_size'])
+            keys.append(f"{file_name} - {file_size}")
+            callback_data.append(content['file_unique_id'])
 
         # add show comments, answers, etc.
         num_comments = self.db.post.count_documents(
@@ -321,7 +338,6 @@ class BasePost:
             keys.extend([new_like_key, inline_keys.actions])
             callback_data.extend([inline_keys.like, inline_keys.actions])
 
-        # call get text to set is_splitted
         self.get_text(preview=preview, truncate=truncate)
         if self.post_text_length_button:
             keys.append(self.post_text_length_button)

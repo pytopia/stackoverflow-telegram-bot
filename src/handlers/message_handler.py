@@ -82,7 +82,7 @@ class MessageHandler(BaseHandler):
             """
             post_id = self.stackbot.user.post.submit()
             if not post_id:
-                self.stackbot.user.send_message(constants.EMPTY_POST_MESSAGE)
+                # Either post is empty or too short
                 return
 
             self.stackbot.user.post.post_id = post_id

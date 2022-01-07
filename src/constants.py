@@ -139,6 +139,9 @@ MAX_NUMBER_OF_ATTACHMENTS_MESSAGE = (
     f'You can have up to {ATTACHMENT_LIMIT} attachments only.'
 )
 
+MIN_POST_TEXT_LENGTH = 20
+MIN_POST_TEXT_LENGTH_MESSAGE = f':cross_mark: Enter at least <code>{MIN_POST_TEXT_LENGTH}</code> characters.'
+
 # This is used for show more button
 MESSAGE_SPLIT_CHAR_LIMIT = 250
 
