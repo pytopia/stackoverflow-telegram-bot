@@ -32,6 +32,7 @@ inline_keys = SimpleNamespace(
     like=':red_heart:',
     unlike=':white_heart:',
     accept=':check_mark_button: Accept',
+    unaccept=':red_exclamation_mark: Unaccept',
     comment=':speech_balloon: Comment',
     delete=':wastebasket: Delete',
     undelete=':recycling_symbol: Undelete',
@@ -72,14 +73,19 @@ states = SimpleNamespace(
 )
 
 post_status = SimpleNamespace(
+    # Answer Status
+    ACCEPTED_ANSWER=':check_mark_button:',
+
+    # General Status
     PREP=':yellow_circle: Typing...',
     DRAFT=':white_circle: Draft',
     CLOSED=':red_circle: Closed',
     OPEN=':green_circle: Open',
     DELETED=':wastebasket: Deleted',
+    RESOLVED=':check_mark_button: Resolved'
 )
 
-post_type = SimpleNamespace(
+post_types = SimpleNamespace(
     QUESTION='question',
     ANSWER='answer',
     COMMENT='comment',
@@ -99,15 +105,15 @@ post_text_length_button = SimpleNamespace(
 
 SUPPORTED_CONTENT_TYPES = ['text', 'photo', 'audio', 'document', 'video', 'voice', 'video_note']
 EMOJI = {
-    post_type.QUESTION: ':red_question_mark:',
-    post_type.ANSWER: ':bright_button:',
-    post_type.COMMENT: ':speech_balloon:',
+    post_types.QUESTION: ':red_question_mark:',
+    post_types.ANSWER: ':bright_button:',
+    post_types.COMMENT: ':speech_balloon:',
 }
 
 HTML_ICON = {
-    post_type.QUESTION: '&#10067;',
-    post_type.ANSWER: '&#11088;',
-    post_type.COMMENT: '&#128172;',
+    post_types.QUESTION: '&#10067;',
+    post_types.ANSWER: '&#11088;',
+    post_types.COMMENT: '&#128172;',
 }
 
 OPEN_POST_ONLY_ACITONS = [
@@ -118,9 +124,9 @@ OPEN_POST_ONLY_ACITONS = [
 
 # Posts longer than this are not allowed
 MESSAGE_CHAR_LIMIT = {
-    post_type.QUESTION: 4096,
-    post_type.ANSWER: 4096,
-    post_type.COMMENT: 500,
+    post_types.QUESTION: 4096,
+    post_types.ANSWER: 4096,
+    post_types.COMMENT: 500,
 }
 
 # This is used for show more button
@@ -142,6 +148,8 @@ IDENTITY_TYPE_NOT_SET_WARNING = (
 )
 MY_DATA_MESSAGE = ':thought_balloon: Select your data type from the menu:'
 BACK_TO_HOME_MESSAGE = ':house: Back to Home'
+NEW_ACCEPTED_ANSWER = ':check_mark_button: New accepted answer:'
+USER_ANSWER_IS_ACCEPTED_MESSAGE = ':party_popper: Awesome! Your answer is accepted now.'
 
 # Post Templates
 POST_OPEN_SUCCESS_MESSAGE = ":check_mark_button: {post_type} sent successfully."

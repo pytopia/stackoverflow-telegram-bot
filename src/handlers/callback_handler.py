@@ -7,7 +7,7 @@ from telebot.types import Chat
 from src.data import DATA_DIR
 from src import constants
 from src.bot import bot
-from src.constants import (inline_keys, keyboards, post_status, post_type,
+from src.constants import (inline_keys, keyboards, post_status, post_types,
                            states)
 from src.data_models.base import BasePost
 from src.handlers.base import BaseHandler
@@ -17,7 +17,7 @@ from src.utils.keyboard import create_keyboard
 
 class CallbackHandler(BaseHandler):
     def register(self):
-        @self.stack.bot.middleware_handler(update_types=['callback_query'])
+        @self.stackbot.bot.middleware_handler(update_types=['callback_query'])
         def init_callback_handler(bot_instance, call):
             """
             Initialize user to use in other callback handlers.
@@ -33,21 +33,21 @@ class CallbackHandler(BaseHandler):
             if post_id is None:
                 logger.warning('post_id is None!')
 
-            self.stack.user = User(
+            self.stackbot.user = User(
                 chat_id=call.message.chat.id, first_name=call.message.chat.first_name,
-                mongodb=self.db, stackbot=self.stack, post_id=post_id
+                db=self.db, stackbot=self.stackbot, post_id=post_id
             )
             # register user if not exists
-            if not self.stack.user.is_registered:
-                self.stack.user.register(call.message)
+            if not self.stackbot.user.is_registered:
+                self.stackbot.user.register(call.message)
 
             # update post info
             gallery_filters = self.get_gallery_filters(
                 call.message.chat.id, call.message.message_id,
-                self.stack.user.post.post_id
+                self.stackbot.user.post.post_id
             )
-            self.stack.user.post.is_gallery = call_info.get('is_gallery', False)
-            self.stack.user.post.gallery_filters = gallery_filters
+            self.stackbot.user.post.is_gallery = call_info.get('is_gallery', False)
+            self.stackbot.user.post.gallery_filters = gallery_filters
 
             # Demojize text
             call.data = emoji.demojize(call.data)
@@ -63,8 +63,8 @@ class CallbackHandler(BaseHandler):
             3. Edit message with post text and actions keyboard.
             """
             self.answer_callback_query(call.id, text=call.data)
-            reply_markup = self.stack.user.post.get_actions_keyboard()
-            self.stack.user.edit_message(call.message.message_id, reply_markup=reply_markup)
+            reply_markup = self.stackbot.user.post.get_actions_keyboard()
+            self.stackbot.user.edit_message(call.message.message_id, reply_markup=reply_markup)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.answer, inline_keys.comment])
         def answer_comment_callback(call):
@@ -78,14 +78,14 @@ class CallbackHandler(BaseHandler):
             3. Send start typing message.
             """
             self.answer_callback_query(call.id, text=call.data)
-            current_post_type = post_type.COMMENT if call.data == inline_keys.comment else post_type.ANSWER
+            current_post_type = post_types.COMMENT if call.data == inline_keys.comment else post_types.ANSWER
 
-            self.stack.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
-            self.stack.user.track(replied_to_post_id=self.stack.user.post.post_id)
+            self.stackbot.user.update_state(states.ANSWER_QUESTION if call.data == inline_keys.answer else states.COMMENT_POST)
+            self.stackbot.user.track(replied_to_post_id=self.stackbot.user.post.post_id)
 
-            self.stack.user.send_message(
+            self.stackbot.user.send_message(
                 constants.POST_START_MESSAGE.format(
-                    first_name=self.stack.user.first_name,
+                    first_name=self.stackbot.user.first_name,
                     post_type=current_post_type
                 ),
                 reply_markup=keyboards.send_post,
@@ -103,12 +103,12 @@ class CallbackHandler(BaseHandler):
             self.answer_callback_query(call.id, text=call.data)
 
             # main menu keyboard
-            if self.stack.user.post.post_id is not None:
+            if self.stackbot.user.post.post_id is not None:
                 # back is called on a post (question, answer or comment
-                self.stack.user.edit_message(call.message.message_id, reply_markup=self.stack.user.post.get_keyboard())
+                self.stackbot.user.edit_message(call.message.message_id, reply_markup=self.stackbot.user.post.get_keyboard())
             else:
                 # back is called in settings
-                self.stack.user.edit_message(call.message.message_id, reply_markup=self.stack.get_settings_keyboard())
+                self.stackbot.user.edit_message(call.message.message_id, reply_markup=self.stackbot.get_settings_keyboard())
 
         @bot.callback_query_handler(
             func=lambda call: call.data in [inline_keys.like, inline_keys.follow, inline_keys.unfollow]
@@ -126,15 +126,15 @@ class CallbackHandler(BaseHandler):
             self.answer_callback_query(call.id, text=call.data)
 
             if call.data == inline_keys.like:
-                self.stack.user.post.like()
-                keyboard = self.stack.user.post.get_keyboard()
+                self.stackbot.user.post.like()
+                keyboard = self.stackbot.user.post.get_keyboard()
 
             elif call.data in [inline_keys.follow, inline_keys.unfollow]:
-                self.stack.user.post.follow()
-                keyboard = self.stack.user.post.get_actions_keyboard()
+                self.stackbot.user.post.follow()
+                keyboard = self.stackbot.user.post.get_actions_keyboard()
 
             # update main menu keyboard
-            self.stack.user.edit_message(call.message.message_id, reply_markup=keyboard)
+            self.stackbot.user.edit_message(call.message.message_id, reply_markup=keyboard)
 
         @bot.callback_query_handler(
             func=lambda call: call.data in [inline_keys.open, inline_keys.close, inline_keys.delete, inline_keys.undelete]
@@ -157,16 +157,31 @@ class CallbackHandler(BaseHandler):
                 field = 'status'
 
                 # toggle between deleted and current post status
-                other_status = self.stack.user.post.post_status
+                other_status = self.stackbot.user.post.post_status
                 if other_status == post_status.DELETED:
                     other_status = post_status.OPEN
                 values = list({post_status.DELETED, other_status})
 
-            self.stack.user.post.toggle_field_values(field=field, values=values)
-            self.stack.user.edit_message(
+            self.stackbot.user.post.toggle_field_values(field=field, values=values)
+            self.stackbot.user.edit_message(
                 call.message.message_id,
-                text=self.stack.user.post.get_text(),
-                reply_markup=self.stack.user.post.get_actions_keyboard()
+                text=self.stackbot.user.post.get_text(),
+                reply_markup=self.stackbot.user.post.get_actions_keyboard()
+            )
+
+        @bot.callback_query_handler(
+            func=lambda call: call.data in [inline_keys.accept, inline_keys.unaccept]
+        )
+        def accept_answer(call):
+            """
+            """
+            self.answer_callback_query(call.id, text=call.data)
+
+            self.stackbot.user.post.accept_answer()
+            self.stackbot.user.edit_message(
+                call.message.message_id,
+                text=self.stackbot.user.post.get_text(),
+                reply_markup=self.stackbot.user.post.get_actions_keyboard()
             )
 
         @bot.callback_query_handler(func=lambda call: call.data == inline_keys.change_identity)
@@ -186,7 +201,7 @@ class CallbackHandler(BaseHandler):
                 inline_keys.ananymous, inline_keys.first_name, inline_keys.username,
                 is_inline=True
             )
-            self.stack.user.edit_message(call.message.message_id, reply_markup=keyboard)
+            self.stackbot.user.edit_message(call.message.message_id, reply_markup=keyboard)
 
         @bot.callback_query_handler(
             func=lambda call: call.data in [inline_keys.ananymous, inline_keys.first_name, inline_keys.username]
@@ -200,8 +215,8 @@ class CallbackHandler(BaseHandler):
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            self.stack.user.update_settings(identity_type=call.data)
-            self.stack.user.edit_message(
+            self.stackbot.user.update_settings(identity_type=call.data)
+            self.stackbot.user.edit_message(
                 call.message.message_id,
                 text=self.get_settings_text(), reply_markup=self.get_settings_keyboard()
             )
@@ -220,7 +235,7 @@ class CallbackHandler(BaseHandler):
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            post = self.stack.user.post.as_dict()
+            post = self.stackbot.user.post.as_dict()
             original_post_id = self.db.post.find_one({'_id': post['replied_to_post_id']})['_id']
 
             original_post_info = self.db.callback_data.find_one(
@@ -230,14 +245,14 @@ class CallbackHandler(BaseHandler):
             is_gallery = original_post_info.get('is_gallery')
             gallery_filters = original_post_info.get('gallery_filters')
 
-            self.stack.user.post = BasePost(
-                mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
-                post_id=original_post_id, chat_id=self.stack.user.chat_id,
+            self.stackbot.user.post = BasePost(
+                db=self.stackbot.user.db, stackbot=self.stackbot,
+                post_id=original_post_id, chat_id=self.stackbot.user.chat_id,
                 gallery_filters=gallery_filters, is_gallery=is_gallery
             )
             # Edit message with new gallery
-            post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
-            self.stack.user.edit_message(
+            post_text, post_keyboard = self.stackbot.user.post.get_text_and_keyboard()
+            self.stackbot.user.edit_message(
                 call.message.message_id,
                 text=post_text,
                 reply_markup=post_keyboard
@@ -252,9 +267,9 @@ class CallbackHandler(BaseHandler):
             """
             self.answer_callback_query(call.id, text=call.data)
 
-            post = self.stack.user.post.as_dict()
+            post = self.stackbot.user.post.as_dict()
 
-            gallery_post_type = post_type.ANSWER if call.data == inline_keys.show_answers else post_type.COMMENT
+            gallery_post_type = post_types.ANSWER if call.data == inline_keys.show_answers else post_types.COMMENT
             gallery_filters = {'replied_to_post_id': post['_id'], 'type': gallery_post_type, 'status': post_status.OPEN}
             posts = self.db.post.find(gallery_filters).sort('date', -1)
 
@@ -268,7 +283,7 @@ class CallbackHandler(BaseHandler):
         def next_prev_callback(call):
             self.answer_callback_query(call.id, text=call.data)
 
-            post = self.stack.user.post.as_dict()
+            post = self.stackbot.user.post.as_dict()
             operator = '$gt' if call.data == inline_keys.next_post else '$lt'
             asc_desc = 1 if call.data == inline_keys.next_post else -1
 
@@ -315,12 +330,12 @@ class CallbackHandler(BaseHandler):
 
             # check if it's a preview or a full post
             preview = False
-            if self.stack.user.state == states.ASK_QUESTION:
+            if self.stackbot.user.state == states.ASK_QUESTION:
                 preview = True
 
             # update text and keyboard
-            text, keyboard = self.stack.user.post.get_text_and_keyboard(truncate=truncate, preview=preview)
-            self.stack.user.edit_message(call.message.message_id, text=text, reply_markup=keyboard)
+            text, keyboard = self.stackbot.user.post.get_text_and_keyboard(truncate=truncate, preview=preview)
+            self.stackbot.user.edit_message(call.message.message_id, text=text, reply_markup=keyboard)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.export_gallery])
         def export_gallery(call):
@@ -328,7 +343,7 @@ class CallbackHandler(BaseHandler):
             Show more or less text for a long post.
             """
             self.answer_callback_query(call.id, text=call.data)
-            chat_id = self.stack.user.chat_id
+            chat_id = self.stackbot.user.chat_id
             gallery_filters = self.get_call_info(call)['gallery_filters']
 
             # Send html file to user
@@ -337,8 +352,8 @@ class CallbackHandler(BaseHandler):
                 f.write(file_content)
 
             with open(DATA_DIR / 'export' / f'{chat_id}.html', 'r') as f:
-                self.stack.bot.send_document(
-                    self.stack.user.chat_id, f
+                self.stackbot.bot.send_document(
+                    self.stackbot.user.chat_id, f
                 )
 
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
@@ -347,7 +362,7 @@ class CallbackHandler(BaseHandler):
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
             self.answer_callback_query(call.id, text=f'{call.data}...')
-            self.stack.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
+            self.stackbot.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
         @bot.callback_query_handler(func=lambda call: True)
         def not_implemented_callback(call):
@@ -362,7 +377,7 @@ class CallbackHandler(BaseHandler):
         """
         if emojize:
             text = emoji.emojize(text)
-        self.stack.bot.answer_callback_query(call_id, text=text)
+        self.stackbot.bot.answer_callback_query(call_id, text=text)
 
     def get_call_info(self, call):
         """
@@ -376,7 +391,7 @@ class CallbackHandler(BaseHandler):
 
         We also store post_type in the database to use the right handler in user object (Question, Answer, Comment).
         """
-        post_id = self.stack.retrive_post_id_from_message_text(call.message.text)
+        post_id = self.stackbot.retrive_post_id_from_message_text(call.message.text)
 
         callback_data = self.db.callback_data.find_one(
             {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': post_id}
@@ -400,15 +415,15 @@ class CallbackHandler(BaseHandler):
         :param is_gallery: If True, send gallery of posts. If False, send single post.
             Next and previous buttions will be added to the message if is_gallery is True.
         """
-        self.stack.user.post = BasePost(
-            mongodb=self.stack.user.db, stackbot=self.stack,
-            post_id=next_post_id, chat_id=self.stack.user.chat_id,
+        self.stackbot.user.post = BasePost(
+            db=self.stackbot.user.db, stackbot=self.stackbot,
+            post_id=next_post_id, chat_id=self.stackbot.user.chat_id,
             is_gallery=is_gallery, gallery_filters=gallery_fiters
         )
 
         # Edit message with new gallery
-        post_text, post_keyboard = self.stack.user.post.get_text_and_keyboard()
-        self.stack.user.edit_message(
+        post_text, post_keyboard = self.stackbot.user.post.get_text_and_keyboard()
+        self.stackbot.user.edit_message(
             call.message.message_id,
             text=post_text,
             reply_markup=post_keyboard
@@ -418,7 +433,7 @@ class CallbackHandler(BaseHandler):
         """
         Export gallery data.
         """
-        user_identity = self.stack.user.identity
+        user_identity = self.stackbot.user.identity
         if format != 'html':
             return
 
@@ -434,8 +449,8 @@ class CallbackHandler(BaseHandler):
 
     def post_to_html(self, post_id, post_number, user_identity):
         post = BasePost(
-            mongodb=self.stack.user.db, stackbot=self.stack.user.stackbot,
-            post_id=post_id, chat_id=self.stack.user.chat_id
+            db=self.stackbot.user.db, stackbot=self.stackbot,
+            post_id=post_id, chat_id=self.stackbot.user.chat_id
         )
         post_html = post.export(format='html')
         post_html = post_html.replace(r'{{{user_identity}}}', str(user_identity))

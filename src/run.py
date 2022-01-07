@@ -25,9 +25,9 @@ class StackBot:
     Using the Telegram Bot API, users can interact with each other to ask questions,
     comment, and answer.
     """
-    def __init__(self, telebot, mongodb):
+    def __init__(self, telebot, db):
         self.bot = telebot
-        self.db = mongodb
+        self.db = db
 
         # Add custom filters
         self.bot.add_custom_filter(IsAdmin())
@@ -41,9 +41,9 @@ class StackBot:
         # Note: The order of handlers matters as the first
         # handler that matches a message will be executed.
         self.handlers = [
-            CommandHandler(stack=self, db=self.db),
-            MessageHandler(stack=self, db=self.db),
-            CallbackHandler(stack=self, db=self.db),
+            CommandHandler(stackbot=self, db=self.db),
+            MessageHandler(stackbot=self, db=self.db),
+            CallbackHandler(stackbot=self, db=self.db),
         ]
         self.register()
 
@@ -234,5 +234,5 @@ class StackBot:
 
 if __name__ == '__main__':
     logger.info('Bot started...')
-    stackbot = StackBot(telebot=bot, mongodb=db)
+    stackbot = StackBot(telebot=bot, db=db)
     stackbot.run()

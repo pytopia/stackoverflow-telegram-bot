@@ -8,8 +8,8 @@ class BaseHandler(ABC):
     """
     Base class for all telebot handlers.
     """
-    def __init__(self, stack, db):
-        self.stack = stack
+    def __init__(self, stackbot, db):
+        self.stackbot = stackbot
         self.db = db
 
     @abstractclassmethod
@@ -22,7 +22,7 @@ class BaseHandler(ABC):
         """
         Returns settings main menu keyboard.
         """
-        muted_bot = self.stack.user.settings.get('muted_bot')
+        muted_bot = self.stackbot.user.settings.get('muted_bot')
         if muted_bot:
             keys = [inline_keys.change_identity, inline_keys.unmute]
         else:
@@ -35,8 +35,8 @@ class BaseHandler(ABC):
         Returns settings text message.
         """
         text = SETTINGS_START_MESSAGE.format(
-            first_name=self.stack.user.first_name,
-            username=self.stack.user.username,
-            identity=self.stack.user.identity,
+            first_name=self.stackbot.user.first_name,
+            username=self.stackbot.user.username,
+            identity=self.stackbot.user.identity,
         )
         return text

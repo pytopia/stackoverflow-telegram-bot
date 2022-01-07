@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from bson.objectid import ObjectId
 from src import constants
 from src.constants import (SUPPORTED_CONTENT_TYPES, inline_keys, post_status,
-                           post_type)
+                           post_types)
 from src.data import DATA_DIR
 from src.utils.common import (human_readable_size, human_readable_unix_time,
                               json_encoder)
@@ -19,10 +19,10 @@ class BasePost:
     General class for all types of posts: Question, Answer, Comment, etc.
     """
     def __init__(
-        self, mongodb, stackbot, post_id: str = None, chat_id: str = None,
+        self, db, stackbot, post_id: str = None, chat_id: str = None,
         is_gallery: bool = False, gallery_filters=None
     ):
-        self.db = mongodb
+        self.db = db
         self.stackbot = stackbot
 
         # post_id has setter and getter to convert it to ObjectId in case it is a string
@@ -33,7 +33,7 @@ class BasePost:
         self.is_gallery = is_gallery
         self.gallery_filters = gallery_filters
 
-        self.emoji = constants.EMOJI.get(self.post_type)
+        self._emoji = constants.EMOJI.get(self.post_type)
         self.html_icon = constants.HTML_ICON.get(self.post_type)
 
         self.collection = self.db.post
@@ -41,6 +41,10 @@ class BasePost:
 
         self.post_text_length_button = None
         self.is_splitted = True
+
+    @property
+    def emoji(self):
+        return self._emoji
 
     @property
     def post_id(self):
@@ -58,6 +62,7 @@ class BasePost:
     def as_dict(self) -> dict:
         if not self.post_id:
             return {}
+
         post = self.db.post.find_one({'_id': ObjectId(self.post_id)}) or {}
         return post
 
@@ -265,9 +270,9 @@ class BasePost:
 
         # add show comments, answers, etc.
         num_comments = self.db.post.count_documents(
-            {'replied_to_post_id': self.post_id, 'type': post_type.COMMENT, 'status': post_status.OPEN})
+            {'replied_to_post_id': self.post_id, 'type': post_types.COMMENT, 'status': post_status.OPEN})
         num_answers = self.db.post.count_documents(
-            {'replied_to_post_id': self.post_id, 'type': post_type.ANSWER, 'status': post_status.OPEN})
+            {'replied_to_post_id': self.post_id, 'type': post_types.ANSWER, 'status': post_status.OPEN})
         if num_comments:
             keys.append(f'{inline_keys.show_comments} ({num_comments})')
             callback_data.append(inline_keys.show_comments)
@@ -448,7 +453,7 @@ class BasePost:
         :param chat_id: Unique id of the user
         """
         from src.user import User
-        user = User(chat_id=self.owner_chat_id, first_name=None, mongodb=self.db, stackbot=self.stackbot)
+        user = User(chat_id=self.owner_chat_id, first_name=None, db=self.db, stackbot=self.stackbot)
         return user.identity
 
     @staticmethod

@@ -5,7 +5,7 @@ from telebot import types
 
 from src import constants
 from src.constants import (DELETE_BOT_MESSAGES_AFTER_TIME, inline_keys,
-                           keyboards, post_type, states)
+                           keyboards, post_types, states)
 from src.data_models import Answer, Comment, Question
 from src.data_models.base import BasePost
 
@@ -14,23 +14,63 @@ class User:
     """
     Class to handle telegram bot users.
     """
-    def __init__(self, chat_id: str, first_name: str, mongodb, stackbot, post_id: str = None):
+    def __init__(self, chat_id: str, first_name: str, db, stackbot, post_id: str = None):
         """
         Initialize user.
 
         :param chat_id: Telegram chat id.
-        :param mongodb: MongoDB connection.
-        :param stackbot: Stackbot class object.
+        :param db: MongoDB connection.
+        :param stackbot: StackBot class object.
         :param first_name: User first name.
         :param post_id: ObjectId of the post, defaults to None.
         """
         self.chat_id = chat_id
-        self.db = mongodb
+        self.db = db
         self.stackbot = stackbot
         self.first_name = first_name
 
         # post handlers
-        self.post = self.get_post_handler(post_id)
+        self.post_id = post_id
+        self._post = None
+
+    @staticmethod
+    def get_post_handler(state, post_type):
+        if (post_type == post_types.QUESTION) or (state == states.ASK_QUESTION):
+            return Question
+        elif (post_type == post_types.ANSWER) or (state == states.ANSWER_QUESTION):
+            return Answer
+        elif (post_type == post_types.COMMENT) or (state == states.COMMENT_POST):
+            return Comment
+
+        return BasePost
+
+    @property
+    def post(self):
+        """
+        Return the right post handler based on user state or post type.
+        """
+        if self._post is not None:
+            return self._post
+
+        post = self.db.post.find_one({'_id': self.post_id}) or {}
+        args = dict(db=self.db, stackbot=self.stackbot, chat_id=self.chat_id, post_id=self.post_id)
+        self._post = self.get_post_handler(self.state, post['type'])(**args)
+
+        return self._post
+
+    @post.setter
+    def post(self, post_handler):
+        if not isinstance(post_handler, BasePost):
+            raise TypeError('Post must be an instance of BasePost (Question, Answer, Comment).')
+
+        args = dict(
+            db=post_handler.db, stackbot=post_handler.stackbot, chat_id=post_handler.chat_id,
+            is_gallery=post_handler.is_gallery, gallery_filters=post_handler.gallery_filters,
+            post_id=post_handler.post_id,
+        )
+
+        post_type = self.db.post.find_one({'_id': post_handler.post_id})['type']
+        self._post = self.get_post_handler(self.state, post_type)(**args)
 
     @property
     def user(self):
@@ -75,22 +115,6 @@ class User:
             return f"{user['chat']['first_name']} ({self.chat_id})"
 
         return user['chat'].get(identity_type) or self.chat_id
-
-    def get_post_handler(self, post_id):
-        """
-        Return the right post handler based on user state or post type.
-        """
-        post = self.db.post.find_one({'_id': post_id}) or {}
-        args = dict(mongodb=self.db, stackbot=self.stackbot, chat_id=self.chat_id, post_id=post_id)
-
-        if (post.get('type') == post_type.QUESTION) or (self.state == states.ASK_QUESTION):
-            return Question(**args)
-        elif (post.get('type') == post_type.ANSWER) or (self.state == states.ANSWER_QUESTION):
-            return Answer(**args)
-        elif (post.get('type') == post_type.COMMENT) or (self.state == states.COMMENT_POST):
-            return Comment(**args)
-
-        return BasePost(**args)
 
     def send_message(
         self, text: str, reply_markup: Union[types.InlineKeyboardMarkup, types.ReplyKeyboardMarkup] = None,

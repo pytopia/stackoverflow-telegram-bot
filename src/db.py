@@ -31,7 +31,7 @@ def build_indexes(db):
 # MongoDB connection
 client = pymongo.MongoClient("localhost", 27017)
 db = client.test
-
+ 
 # Build indexes
 logger.info('Building indexes...')
 build_indexes(db)

@@ -7,7 +7,7 @@ from src.db import db
 from src.run import StackBot
 
 
-stackbot = StackBot(mongodb=db, telebot=bot)
+stackbot = StackBot(db=db, telebot=bot)
 DELETION_SLEEP = 10  # seconds
 KEEP_LAST_MESSAGES_NUMBER = 3
 

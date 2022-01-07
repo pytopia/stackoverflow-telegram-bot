@@ -9,8 +9,14 @@ class Comment(BasePost):
     """
     Class to handle the comments sent by the users on other posts.
     """
-    def __init__(self, mongodb, stackbot, post_id: str = None, chat_id: str = None):
-        super().__init__(mongodb, stackbot, chat_id=chat_id, post_id=post_id)
+    def __init__(
+        self, db, stackbot, post_id: str = None, chat_id: str = None,
+        is_gallery: bool = False, gallery_filters=None
+    ):
+        super().__init__(
+            db=db, stackbot=stackbot, chat_id=chat_id, post_id=post_id,
+            is_gallery=is_gallery, gallery_filters=gallery_filters
+        )
         self.supported_content_types = ['text']
 
     def send(self) -> dict:

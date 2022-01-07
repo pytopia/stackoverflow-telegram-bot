@@ -9,7 +9,7 @@ from src.db import db
 from src.run import StackBot
 
 
-stackbot = StackBot(mongodb=db, telebot=bot)
+stackbot = StackBot(db=db, telebot=bot)
 UPDATE_SLEEP = 1 * 60  # seconds
 UPDATE_DELAY = 30
 
@@ -33,7 +33,7 @@ def update_message(update_doc):
         return
 
     post_handler = BasePost(
-        mongodb=db, stackbot=stackbot, post_id=callback_data['post_id'], chat_id=chat_id,
+        db=db, stackbot=stackbot, post_id=callback_data['post_id'], chat_id=chat_id,
         is_gallery=callback_data['is_gallery'], gallery_filters=callback_data['gallery_filters']
     )
 
