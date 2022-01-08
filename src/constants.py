@@ -59,6 +59,7 @@ inline_keys = SimpleNamespace(
     export_gallery=':inbox_tray: Export',
     bookmark=':pushpin: Bookmark',
     unbookmark=':pushpin: Unbookmark',
+    attachments=':paperclip:',
 )
 
 keyboards = SimpleNamespace(
@@ -141,7 +142,8 @@ MAX_NUMBER_OF_CHARACTERS_MESSAGE = (
 )
 MAX_NUMBER_OF_ATTACHMENTS_MESSAGE = (
     ':cross_mark: Max number of attachments reached. '
-    f'You can have up to {ATTACHMENT_LIMIT} attachments only.'
+    f'You can have up to <strong>{ATTACHMENT_LIMIT}</strong> attachments only. '
+    '<strong>Last attachment is ignored.</strong>'
 )
 
 MIN_POST_TEXT_LENGTH = 20

@@ -5,7 +5,7 @@ def build_indexes(db):
     # users
     db.users.create_index([('chat.id', 1)], unique=True)
     db.users.create_index([('chat.id', 1), ('state', 1)])
-    db.users.create_index([('content.file_unique_id', 1)])
+    db.users.create_index([('attachments.file_unique_id', 1)])
 
     # posts
     db.post.create_index([('status', 1)])
@@ -30,7 +30,7 @@ def build_indexes(db):
 
 # MongoDB connection
 client = pymongo.MongoClient("localhost", 27017)
-db = client.new
+db = client.test
 
 # Build indexes
 logger.info('Building indexes...')

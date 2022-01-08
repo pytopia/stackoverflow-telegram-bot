@@ -3,7 +3,6 @@ import re
 import emoji
 from bson.objectid import ObjectId
 from loguru import logger
-from telebot.types import Chat
 from src.data import DATA_DIR
 from src import constants
 from src.bot import bot
@@ -63,8 +62,8 @@ class CallbackHandler(BaseHandler):
             3. Edit message with post text and actions keyboard.
             """
             self.answer_callback_query(call.id, text=call.data)
-            reply_markup = self.stackbot.user.post.get_actions_keyboard()
-            self.stackbot.user.edit_message(call.message.message_id, reply_markup=reply_markup)
+            keyboard = self.stackbot.user.post.get_actions_keyboard()
+            self.stackbot.user.edit_message(call.message.message_id, reply_markup=keyboard)
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.answer, inline_keys.comment])
         def answer_comment_callback(call):
@@ -374,12 +373,21 @@ class CallbackHandler(BaseHandler):
                     self.stackbot.user.chat_id, f
                 )
 
+        @bot.callback_query_handler(func=lambda call: call.data == inline_keys.attachments)
+        def show_attachments(call):
+            """
+            Show attached files.
+            """
+            self.answer_callback_query(call.id, text=call.data)
+            keyboard = self.stackbot.user.post.get_attachments_keyboard()
+            self.stackbot.user.edit_message(call.message.message_id, reply_markup=keyboard)
+
         @bot.callback_query_handler(func=lambda call: re.match(r'[a-zA-Z0-9-]+', call.data))
         def send_file(call):
             """
             Send file callback. Callback data is file_unique_id. We use this to get file from telegram database.
             """
-            self.answer_callback_query(call.id, text=f'{call.data}...')
+            self.answer_callback_query(call.id, text=f'Sending file: {call.data}...')
             self.stackbot.send_file(call.message.chat.id, call.data, message_id=call.message.message_id)
 
         @bot.callback_query_handler(func=lambda call: True)

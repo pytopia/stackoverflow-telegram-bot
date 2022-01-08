@@ -75,12 +75,13 @@ class BasePost:
         return self.as_dict().get('status')
 
     def check_prep_post_limits(self, current_post, new_content):
-        # Get current content (previous content + new content)
-        current_post['content'] = current_post.get('content', [])
-        current_post['content'].append(new_content)
-
         # Get current content text and attachments
         text, attachments = self.get_post_text_and_attachments(current_post)
+
+        if new_content.get('text'):
+            text += new_content['text']
+        if new_content.get('attachments'):
+            attachments.append(new_content['attachments'])
 
         characters_left = constants.POST_CHAR_LIMIT[current_post.get('type', self.post_type)] - len(text)
         if characters_left < 0:
@@ -110,28 +111,28 @@ class BasePost:
             return
 
         if message.content_type == 'text':
-            content = {'text': message.html_text}
+            push_data = {'text': message.html_text}
         else:
             # If content is a file, its file_id, mimetype, etc is saved in database for later use
             # Note that if content is a list, the last one has the highest quality
             content = getattr(message, message.content_type)
             content = vars(content[-1]) if isinstance(content, list) else vars(content)
-        content['content_type'] = message.content_type
+            content['content_type'] = message.content_type
 
-        # removing non-json-serializable data
-        content = self.remove_non_json_data(content)
+            # removing non-json-serializable data
+            content = self.remove_non_json_data(content)
+            push_data = {'attachments': content}
 
         # Check post limitations (number of characters, number of attachments)
         current_post = self.db.post.find_one({'chat.id': self.chat_id, 'status': post_status.PREP}) or {}
-        if not self.check_prep_post_limits(current_post=current_post, new_content=content):
+        if not self.check_prep_post_limits(current_post=current_post, new_content=push_data):
             self.post_id = current_post['_id']
             return
 
         # Save to database
         set_data = {'date': message.date, 'type': self.post_type, 'replied_to_post_id': replied_to_post_id}
         output = self.collection.update_one({'chat.id': message.chat.id, 'status': post_status.PREP}, {
-            '$push': {'content': content},
-            '$set': set_data,
+            '$push': push_data, '$set': set_data,
         }, upsert=True)
 
         self.post_id = output.upserted_id or self.collection.find_one({
@@ -145,6 +146,8 @@ class BasePost:
         :return: Unique id of the stored post in db.
         """
         post = self.collection.find_one({'chat.id': self.chat_id, 'status': post_status.PREP})
+        if not post:
+            return
 
         # Stor raw text for search, keywords, similarity, etc.
         post_text = self.get_post_text(post)
@@ -152,11 +155,9 @@ class BasePost:
             self.stackbot.send_message(self.chat_id, constants.MIN_POST_TEXT_LENGTH_MESSAGE)
             return
 
-        if not post:
-            return
-
+        # Update post status to OPEN (from PREP)
         self.collection.update_one({'_id': post['_id']}, {'$set': {
-            'status': post_status.OPEN, 'text': post_text,
+            'status': post_status.OPEN, 'raw_text': post_text,
         }})
         return post['_id']
 
@@ -209,22 +210,12 @@ class BasePost:
 
     @staticmethod
     def get_post_text(post):
-        post_text = ""
-        for content in post.get('content', []):
-            if content['content_type'] == 'text' and content['text']:
-                post_text += f"{content['text']}\n"
-
-        return post_text.strip()
+        post_text = '\n'.join(post.get('text', []))
+        return post_text
 
     @staticmethod
     def get_post_attachments(post):
-        attachments = []
-        for content in post.get('content', []):
-            if content['content_type'] == 'text':
-                continue
-            attachments.append(content)
-
-        return attachments
+        return post.get('attachments', [])
 
     @staticmethod
     def get_post_text_and_attachments(post):
@@ -296,22 +287,18 @@ class BasePost:
         post = self.as_dict()
 
         keys, callback_data = [], []
-        # add back to original post key
+        # Add back to original post key
         original_post = self.db.post.find_one({'_id': ObjectId(post['replied_to_post_id'])})
         if original_post:
             keys.append(inline_keys.original_post)
             callback_data.append(inline_keys.original_post)
 
-        # add attachments
-        for content in post['content']:
-            if content['content_type'] == 'text':
-                continue
-            file_name = content.get('file_name') or content['content_type']
-            file_size = human_readable_size(content['file_size'])
-            keys.append(f"{file_name} - {file_size}")
-            callback_data.append(content['file_unique_id'])
+        attachments = self.get_post_attachments(post)
+        if attachments:
+            keys.append(f'{inline_keys.attachments} ({len(attachments)})')
+            callback_data.append(inline_keys.attachments)
 
-        # add show comments, answers, etc.
+        # Add show comments, answers, etc.
         num_comments = self.db.post.count_documents(
             {'replied_to_post_id': self.post_id, 'type': post_types.COMMENT, 'status': post_status.OPEN})
         num_answers = self.db.post.count_documents(
@@ -324,7 +311,7 @@ class BasePost:
             callback_data.append(inline_keys.show_answers)
 
         if not preview:
-            # add actions, like, etc. keys
+            # Add actions, like, etc. keys
             liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
             like_key = inline_keys.like if liked_by_user else inline_keys.unlike
             num_likes = len(post.get('likes', []))
@@ -473,6 +460,23 @@ class BasePost:
             keys.append(inline_keys.bookmark)
 
         return keys, owner_chat_id
+
+    def get_attachments_keyboard(self):
+        post = self.as_dict()
+
+        keys = [inline_keys.back]
+        callback_data = [inline_keys.back]
+
+        # Add attachments
+        for attachment in self.get_post_attachments(post):
+            # Attachments may have or may not have a file_name attribute.
+            # But they always have content_type
+            file_name = attachment.get('file_name') or attachment['content_type']
+            file_size = human_readable_size(attachment['file_size'])
+            keys.append(f"{file_name} - {file_size}")
+            callback_data.append(attachment['file_unique_id'])
+
+        return create_keyboard(*keys, callback_data=callback_data, is_inline=True)
 
     def remove_closed_post_actions(self, keys) -> List:
         """

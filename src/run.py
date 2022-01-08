@@ -148,14 +148,14 @@ class StackBot:
         """
         Send file to telegram bot having a chat_id and file_id.
         """
-        content = self.file_unique_id_to_content(file_unique_id)
-        if not content:
+        attachment = self.file_unique_id_to_metadata(file_unique_id)
+        if not attachment:
             return
 
-        file_id, content_type, mime_type = content['file_id'], content['content_type'], content.get('mime_type')
+        file_id, attachment_type, mime_type = attachment['file_id'], attachment['content_type'], attachment.get('mime_type')
 
-        # Send file to user with the appropriate send_file method according to the content_type
-        send_method = getattr(self.bot, f'send_{content_type}')
+        # Send file to user with the appropriate send_file method according to the attachment_type
+        send_method = getattr(self.bot, f'send_{attachment_type}')
         message = send_method(
             chat_id, file_id,
             reply_to_message_id=message_id,
@@ -164,15 +164,15 @@ class StackBot:
 
         self.queue_message_deletion(chat_id, message.message_id, delete_after)
 
-    def file_unique_id_to_content(self, file_unique_id: str):
+    def file_unique_id_to_metadata(self, file_unique_id: str):
         """
-        Get file content having a file_id.
+        Get file metadata having a file_id.
         """
-        query_result = self.db.post.find_one({'content.file_unique_id': file_unique_id}, {'content.$': 1})
+        query_result = self.db.post.find_one({'attachments.file_unique_id': file_unique_id}, {'attachments.$': 1})
         if not query_result:
             return
 
-        return query_result['content'][0]
+        return query_result['attachments'][0]
 
     def retrive_post_id_from_message_text(self, text: str):
         """

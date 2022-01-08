@@ -121,6 +121,8 @@ class MessageHandler(BaseHandler):
             User asks for all questions to search through.
             """
             if message.text == keys.my_bookmarks:
+                # Bookmarks are stored in user collection not each post
+                # This makes it faster to fetch all bookmarks
                 post_ids = self.db.users.find_one({'chat.id': message.chat.id}).get('bookmarks', [])
                 gallery_filters = {'_id': {'$in': post_ids}}
             else:
@@ -186,7 +188,7 @@ class MessageHandler(BaseHandler):
                 self.stackbot.user.clean_preview(new_preview_message.message_id)
                 return
 
-    def send_gallery(self, gallery_filters=None):
+    def send_gallery(self, gallery_filters=None, order_by='date'):
         """
         Send gallery of posts starting with the post with post_id.
 
@@ -201,7 +203,10 @@ class MessageHandler(BaseHandler):
         :param is_gallery: If True, send gallery of posts. If False, send single post.
             Next and previous buttions will be added to the message if is_gallery is True.
         """
-        posts = self.db.post.find(gallery_filters).sort('date', -1)
+        posts = self.db.post.find(gallery_filters)
+        if order_by:
+            posts = posts.sort(order_by, -1)
+
         try:
             next_post_id = next(posts)['_id']
         except StopIteration:
