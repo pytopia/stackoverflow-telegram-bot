@@ -3,11 +3,11 @@ import re
 import emoji
 from bson.objectid import ObjectId
 from loguru import logger
-from src.data import DATA_DIR
 from src import constants
 from src.bot import bot
 from src.constants import (inline_keys, keyboards, post_status, post_types,
                            states)
+from src.data import DATA_DIR
 from src.data_models.base import BasePost
 from src.handlers.base import BaseHandler
 from src.user import User
@@ -298,6 +298,9 @@ class CallbackHandler(BaseHandler):
 
         @bot.callback_query_handler(func=lambda call: call.data in [inline_keys.next_post, inline_keys.prev_post])
         def next_prev_callback(call):
+            """
+            Next/Prev post inline key callback.
+            """
             self.answer_callback_query(call.id, text=call.data)
 
             post = self.stackbot.user.post.as_dict()

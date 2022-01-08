@@ -339,12 +339,15 @@ class BasePost:
             # Previous page key
             prev_key = inline_keys.prev_post if post_position > 1 else inline_keys.first_page
             keys.append(prev_key)
+
+            print('Adding previous key...')
+            print(prev_key)
             callback_data.append(prev_key)
 
             # Page number key
             post_position_key = f'-- {post_position}/{num_posts} --'
             keys.append(post_position_key)
-            callback_data.append('Page Number')
+            callback_data.append(inline_keys.page_number)
 
             # Next page key
             next_key = inline_keys.next_post if post_position < num_posts else inline_keys.last_page

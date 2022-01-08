@@ -3,8 +3,13 @@ from loguru import logger
 from telebot import types
 
 
-def create_keyboard(*keys, reply_row_width=2, inline_row_width=3, resize_keyboard=True, is_inline=False, callback_data=None):
+def create_keyboard(
+    *keys,
+    reply_row_width=2, inline_row_width=4,
+    resize_keyboard=True, is_inline=False, callback_data=None
+):
     from src.constants import inline_keys
+    from src.constants import inline_keys_groups
     """
     Create a keyboard with buttons.
 
@@ -24,31 +29,23 @@ def create_keyboard(*keys, reply_row_width=2, inline_row_width=3, resize_keyboar
         if callback_data is None:
             callback_data = keys
 
-        # Create inline keyboard
-        markup = types.InlineKeyboardMarkup()
+        sort_by_array = [inline_keys_groups.get(callback, ind + 100) for ind, callback in enumerate(callback_data)]
+        sorted_array = sorted(zip(sort_by_array, keys, callback_data), key=lambda x: x[0])
+
+        old_value = sorted_array[0][0]
         buttons = []
-        for ind, (key, callback) in enumerate(zip(keys, callback_data)):
-            if key in [inline_keys.prev_post, inline_keys.first_page]:
-                break
+        markup = types.InlineKeyboardMarkup(row_width=inline_row_width)
 
-            key = emoji.emojize(key)
-            button = types.InlineKeyboardButton(key, callback_data=callback)
-            buttons.append(button)
-
-            if (ind + 1) % inline_row_width == 0:
+        for sort_by, key, callback in sorted_array:
+            if sort_by - old_value >= 10:
                 markup.add(*buttons)
                 buttons = []
-        else:
-            markup.add(*buttons)
-            return markup
 
-        # Add next and previous buttons
-        markup.add(*buttons)
-        buttons = []
-        for key, callback in zip(keys[ind:], callback_data[ind:]):
+            old_value = sort_by
             key = emoji.emojize(key)
             button = types.InlineKeyboardButton(key, callback_data=callback)
             buttons.append(button)
+
         markup.add(*buttons)
         return markup
 

@@ -51,8 +51,13 @@ inline_keys = SimpleNamespace(
     show_answers=':dim_button:',
     original_post=':reverse_button: Main Post',
     next_post='»',
+    page_number='Page Number',
     prev_post='«',
-    last_page=':white_small_square:',
+
+    # Note: there is one space at the end of this key to make it
+    # different from first_page. If they are the same, last_page overrides first page in
+    # inline_keys_groups dictionary and causes the keyboard keys to be out of order.
+    last_page=':white_small_square: ',
     first_page=':white_small_square:',
     show_more=u'\u2193 Show More',
     show_less=u'\u2191 Show Less',
@@ -61,6 +66,44 @@ inline_keys = SimpleNamespace(
     unbookmark=':pushpin: Unbookmark',
     attachments=':paperclip:',
 )
+
+inline_keys_groups = {
+    # Actions inline keyboard
+    inline_keys.back: 1,
+    inline_keys.comment: 2,
+    inline_keys.answer: 3,
+    inline_keys.accept: 3,
+    inline_keys.unaccept: 3,
+
+    inline_keys.bookmark: 4 + 10,
+    inline_keys.unbookmark: 4 + 10,
+    inline_keys.follow: 5 + 10,
+    inline_keys.unfollow: 5 + 10,
+
+    inline_keys.delete: 6 + 20,
+    inline_keys.undelete: 6 + 20,
+    inline_keys.open: 7 + 20,
+    inline_keys.close: 7 + 20,
+    inline_keys.edit: 8 + 20,
+
+    # Main inline keyboard
+    inline_keys.original_post: 1,
+    inline_keys.attachments: 2,
+    inline_keys.show_answers: 3,
+    inline_keys.show_comments: 4,
+    inline_keys.like: 5,
+
+    inline_keys.show_more: 5 + 10,
+    inline_keys.show_less: 5 + 10,
+    inline_keys.actions: 6 + 10,
+
+    inline_keys.first_page: 7 + 20,
+    inline_keys.prev_post: 7 + 20,
+    inline_keys.page_number: 8 + 20,
+    inline_keys.next_post: 9 + 20,
+    inline_keys.last_page: 9 + 20,
+}
+
 
 keyboards = SimpleNamespace(
     main=create_keyboard(keys.ask_question, keys.search_questions, keys.my_data, keys.settings),
