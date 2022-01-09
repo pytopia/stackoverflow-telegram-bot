@@ -19,10 +19,13 @@ def create_keyboard(
     :param is_inline: If True, create inline keyboard.
     :param callback_data: If not None, use keys text as callback data.
     """
-    if callback_data and len(keys) != len(callback_data):
+    keys = list(keys)
+    if callback_data and (len(keys) != len(callback_data)):
         logger.warning('Callback data length is not equal to keys length. Some keys will be missing.')
 
-    keys = list(keys)
+    # Empty keyboard
+    if not keys:
+        return
 
     if is_inline:
         # Set callback data to keys text
@@ -30,7 +33,10 @@ def create_keyboard(
             callback_data = keys
 
         sort_by_array = [inline_keys_groups.get(callback, ind + 100) for ind, callback in enumerate(callback_data)]
+
+        print(keys, callback_data, sort_by_array)
         sorted_array = sorted(zip(sort_by_array, keys, callback_data), key=lambda x: x[0])
+        print(sorted_array)
 
         old_value = sorted_array[0][0]
         buttons = []
