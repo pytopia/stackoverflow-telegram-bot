@@ -29,6 +29,10 @@ class CallbackHandler(BaseHandler):
             # we get the post type to know what kind of post we are dealing with.
             call_info = self.get_call_info(call)
             post_id = call_info.get('post_id')
+
+            print(call_info)
+
+
             if post_id is None:
                 logger.warning('post_id is None!')
 
@@ -422,12 +426,15 @@ class CallbackHandler(BaseHandler):
         """
         post_id = self.stackbot.retrive_post_id_from_message_text(call.message.text)
 
-        callback_data = self.db.callback_data.find_one(
-            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': post_id}
-        )
+        print(post_id)
         callback_data = self.db.callback_data.find_one(
             {'chat_id': call.message.chat.id, 'message_id': call.message.message_id, 'post_id': ObjectId(post_id)}
         )
+
+        print(list(self.db.callback_data.find(
+            {'chat_id': call.message.chat.id, 'message_id': call.message.message_id}
+        )))
+
         return callback_data or {}
 
     def get_gallery_filters(self, chat_id, message_id, post_id):
@@ -470,9 +477,29 @@ class CallbackHandler(BaseHandler):
             template_html = f.read()
 
         BODY = ''
-        num_documents = self.db.post.count_documents(gallery_filters)
-        for ind, doc in enumerate(self.db.post.find(gallery_filters)):
-            BODY += self.post_to_html(doc['_id'], num_documents - ind, user_identity)
+        num_posts = self.db.post.count_documents(gallery_filters)
+        posts = self.db.post.find(gallery_filters).sort('date', -1)
+        for post_ind, post in enumerate(posts):
+            post_ind = num_posts - post_ind
+            BODY += self.post_to_html(post['_id'], post_ind, user_identity)
+
+            # Add replies
+            replies_filter = {'replied_to_post_id': post['_id'], 'type': post_types.ANSWER}
+            replies = self.db.post.find(replies_filter).sort('date', -1)
+            num_replies = self.db.post.count_documents(replies_filter)
+
+            if num_replies > 0:
+                BODY += (
+                    '<button class="btn btn-primary" type="button" data-toggle="collapse" data-target=".{{{collapse_id}}}" '
+                    'aria-expanded="false" >Replies</button>'.replace(r'{{{collapse_id}}}', f'collapse_{post["_id"]}')
+                )
+                BODY += '<div class="card-columns collapse {{{collapse_id}}} py-3">'.replace(r'{{{collapse_id}}}', f'collapse_{post["_id"]}')
+            for reply_ind, reply in enumerate(replies):
+                reply_ind = num_replies - reply_ind
+                BODY += self.post_to_html(reply['_id'], reply_ind, user_identity)
+
+            if num_replies > 0:
+                BODY += '</div>'
 
         return template_html.replace(r'{{{POSTS-CARDS}}}', BODY)
 
@@ -484,6 +511,5 @@ class CallbackHandler(BaseHandler):
         post_html = post.export(format='html')
         post_html = post_html.replace(r'{{{user_identity}}}', str(user_identity))
         post_html = post_html.replace(r'{{{post_number}}}', str(post_number))
-        post_html += '\n'
 
         return post_html

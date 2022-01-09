@@ -161,7 +161,7 @@ class BasePost:
         }})
         return post['_id']
 
-    def send_to_one(self, chat_id: str, preview: bool = False) -> types.Message:
+    def send_to_one(self, chat_id: str, preview: bool = False, schedule: bool = False) -> types.Message:
         """
         Send post to user with chat_id.
 
@@ -181,6 +181,7 @@ class BasePost:
             reply_markup=post_keyboard,
             delete_after=False,
             auto_update=auto_update,
+            post_id=self.post_id,
         )
 
         return sent_message
@@ -194,7 +195,7 @@ class BasePost:
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
             for chat_id in chat_ids:
-                sent_message = executor.submit(self.send_to_one, chat_id)
+                sent_message = executor.submit(self.send_to_one, chat_id, schedule=True)
 
         return sent_message
 
@@ -298,7 +299,18 @@ class BasePost:
             keys.append(f'{inline_keys.attachments} ({len(attachments)})')
             callback_data.append(inline_keys.attachments)
 
-        # Add show comments, answers, etc.
+        # show more/less button
+        self.get_text(preview=preview, truncate=truncate)
+        if self.post_text_length_button:
+            keys.append(self.post_text_length_button)
+            callback_data.append(self.post_text_length_button)
+
+        # If it's a preview message, we are done!
+        if preview:
+            post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
+            return post_keyboard
+
+        # Add comments, answers, etc.
         num_comments = self.db.post.count_documents(
             {'replied_to_post_id': self.post_id, 'type': post_types.COMMENT, 'status': post_status.OPEN})
         num_answers = self.db.post.count_documents(
@@ -310,53 +322,47 @@ class BasePost:
             keys.append(f'{inline_keys.show_answers} ({num_answers})')
             callback_data.append(inline_keys.show_answers)
 
-        if not preview:
-            # Add actions, like, etc. keys
-            liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
-            like_key = inline_keys.like if liked_by_user else inline_keys.unlike
-            num_likes = len(post.get('likes', []))
-            new_like_key = f'{like_key} ({num_likes})' if num_likes else like_key
+        # Add actions, like, etc. keys
+        liked_by_user = self.collection.find_one({'_id': ObjectId(self.post_id), 'likes': self.chat_id})
+        like_key = inline_keys.like if liked_by_user else inline_keys.unlike
+        num_likes = len(post.get('likes', []))
+        new_like_key = f'{like_key} ({num_likes})' if num_likes else like_key
 
-            keys.extend([new_like_key, inline_keys.actions])
-            callback_data.extend([inline_keys.like, inline_keys.actions])
+        keys.extend([new_like_key, inline_keys.actions])
+        callback_data.extend([inline_keys.like, inline_keys.actions])
 
-        self.get_text(preview=preview, truncate=truncate)
-        if self.post_text_length_button:
-            keys.append(self.post_text_length_button)
-            callback_data.append(self.post_text_length_button)
+        if not self.is_gallery:
+            post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
+            return post_keyboard
 
-        if self.is_gallery:
-            # A gallery post is a post that has more than one post and user
-            # can choose to go to next or previous post.
+        # A gallery post is a post that has more than one post and user
+        # can choose to go to next or previous post.
 
-            # Find current page number
-            conditions = self.gallery_filters.copy()
-            num_posts = self.db.post.count_documents(conditions)
+        # Find current page number
+        conditions = self.gallery_filters.copy()
+        num_posts = self.db.post.count_documents(conditions)
 
-            conditions.update({'date': {'$lt': post['date']}})
-            post_position = self.db.post.count_documents(conditions) + 1
+        conditions.update({'date': {'$lt': post['date']}})
+        post_position = self.db.post.count_documents(conditions) + 1
 
-            # Previous page key
-            prev_key = inline_keys.prev_post if post_position > 1 else inline_keys.first_page
-            keys.append(prev_key)
+        # Previous page key
+        prev_key = inline_keys.prev_post if post_position > 1 else inline_keys.first_page
+        keys.append(prev_key)
+        callback_data.append(prev_key)
 
-            print('Adding previous key...')
-            print(prev_key)
-            callback_data.append(prev_key)
+        # Page number key
+        post_position_key = f'-- {post_position}/{num_posts} --'
+        keys.append(post_position_key)
+        callback_data.append(inline_keys.page_number)
 
-            # Page number key
-            post_position_key = f'-- {post_position}/{num_posts} --'
-            keys.append(post_position_key)
-            callback_data.append(inline_keys.page_number)
+        # Next page key
+        next_key = inline_keys.next_post if post_position < num_posts else inline_keys.last_page
+        keys.append(next_key)
+        callback_data.append(next_key)
 
-            # Next page key
-            next_key = inline_keys.next_post if post_position < num_posts else inline_keys.last_page
-            keys.append(next_key)
-            callback_data.append(next_key)
-
-            # add gallery export key
-            keys.append(inline_keys.export_gallery)
-            callback_data.append(inline_keys.export_gallery)
+        # add gallery export key
+        keys.append(inline_keys.export_gallery)
+        callback_data.append(inline_keys.export_gallery)
 
         post_keyboard = create_keyboard(*keys, callback_data=callback_data, is_inline=True)
         return post_keyboard
